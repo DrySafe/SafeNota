@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import type { User } from "@supabase/supabase-js";
-import { supabase } from "../../lib/supabase";
+import { supabase, missingSupabaseVariables } from "../../lib/supabase";
 const AuthContext = createContext<{
   user: User | null;
   ready: boolean;
@@ -151,8 +151,10 @@ export function Login() {
           </form>
         ) : (
           <div className="notice">
-            Supabase ainda não configurado. Explore o fluxo com dados fictícios;
-            eles ficam somente nesta sessão.
+            Supabase não foi configurado neste build. Variáveis ausentes:{" "}
+            {missingSupabaseVariables.join(", ")}. Configure-as no ambiente
+            deste deployment da Vercel e gere um novo deploy. A demonstração usa
+            apenas dados fictícios nesta sessão.
           </div>
         )}
         <button className="secondary" onClick={enterDemo}>

@@ -14,6 +14,10 @@ No projeto Vercel, em Settings → Environment Variables, configure:
 
 Selecione Production e, se usar implantações de prévia, Preview. Execute um novo deployment após salvar; Vite incorpora esses valores ao JavaScript durante o build. Mudar variáveis não altera uma implantação já compilada.
 
+A URL exclusiva de um deployment também existe para builds de produção; confira o campo Environment nos detalhes da implantação para saber se ela usa Production ou Preview. Se o mesmo projeto for usado em ambos, selecione ambos os ambientes ao cadastrar as variáveis. URLs de deployments anteriores conservam seus builds; confira a URL estável `https://safe-nota.vercel.app` após um novo deployment de produção.
+
+O prebuild agora bloqueia builds da Vercel com configuração ausente ou URL de outro projeto e informa os nomes das variáveis nos logs, sem exibir valores. Builds locais da demonstração continuam permitidos. `.env.example` é apenas um modelo: ele não é carregado automaticamente pelo Vite.
+
 Use somente a chave pública no frontend. Access Token administrativo, service_role, chave JWT de assinatura e segredos Google ficam fora das variáveis `VITE_*`.
 
 O `vercel.json` configura Vite e o fallback para `index.html`, permitindo atualizar páginas como `/clientes` e `/receber`. Use a raiz do repositório como Root Directory, `npm run build` como Build Command e `dist` como Output Directory.
