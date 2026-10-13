@@ -383,7 +383,9 @@ test("requisição gerada vira pendência com chamados e pagamento atualiza dash
       .filter({ has: page.getByText("A receber", { exact: true }) }),
   ).toContainText("80,00");
   await expect(
-    page.locator(".stat").filter({ hasText: "Recebido neste mês" }),
+    page
+      .locator(".stat")
+      .filter({ has: page.getByText("Recebido", { exact: true }) }),
   ).toContainText("150,00");
   await navigate(page, "/requisicoes");
   await expect(req).toContainText("Pago");
@@ -458,4 +460,63 @@ test("referências abrem somente popup e mantêm a aba Pagamentos ao fechar", as
   await expect(
     page.getByRole("button", { name: "Pagamentos", exact: true }),
   ).toHaveClass("active");
+});
+
+test("resumo inclui recebimento de mês anterior e exclui reversões", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-10-13T15:00:00Z"));
+  await navigate(page, "/receber");
+  await page
+    .getByRole("button", { name: "Registrar pagamento", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByRole("combobox", { name: "Cliente", exact: true })
+    .selectOption("client-1");
+  await dialog.getByLabel("Valor recebido").fill("80");
+  await dialog.getByLabel("Data", { exact: true }).fill("2026-07-28");
+  await dialog.getByLabel("Valor para NF 12").fill("80");
+  await dialog.getByRole("button", { name: "Confirmar recebimento" }).click();
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  await navigate(page, "/");
+  const received = page
+    .locator(".stat")
+    .filter({ has: page.getByText("Recebido", { exact: true }) });
+  await expect(received.locator("strong")).toContainText("80,00");
+  await expect(received.locator("small")).toContainText("0,00 neste mês");
+  await received.click();
+  await expect(
+    page.getByRole("button", { name: "Pagamentos", exact: true }),
+  ).toHaveClass("active");
+  page.on("dialog", (dialog) => dialog.accept("Correção de teste"));
+  await page.getByRole("button", { name: "Reverter", exact: true }).click();
+  await expect(page.locator(".entity-card")).toContainText("Revertido");
+  await navigate(page, "/");
+  await expect(received.locator("strong")).toContainText("0,00");
+});
+
+test("menu pequeno fecha ao tocar fora, pressionar Escape ou escolher uma página", async ({
+  page,
+}) => {
+  const width = test.info().project.name === "desktop" ? 560 : 393;
+  await page.setViewportSize({ width, height: 900 });
+  const open = page.getByRole("button", { name: "Abrir menu", exact: true });
+  await open.click();
+  await expect(open).toHaveAttribute("aria-expanded", "true");
+  await page
+    .getByRole("button", { name: "Fechar menu ao tocar fora", exact: true })
+    .click({ position: { x: width - 15, y: 200 } });
+  await expect(open).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator(".sidebar")).not.toHaveClass(/open/);
+  await page.getByRole("button", { name: "Mais", exact: true }).click();
+  await expect(open).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Escape");
+  await expect(open).toHaveAttribute("aria-expanded", "false");
+  await open.click();
+  await page.locator('.sidebar a[href="/servicos"]').click();
+  await expect(
+    page.getByRole("heading", { name: "Serviços e chamados", exact: true }),
+  ).toBeVisible();
+  await expect(open).toHaveAttribute("aria-expanded", "false");
 });

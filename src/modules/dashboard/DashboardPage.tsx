@@ -31,7 +31,8 @@ export function DashboardPage() {
   const overdue = pending.filter(
     (r) => paymentState(r, r.balance) === "Vencido",
   );
-  const received =
+  const received = ps.reduce((n, p) => n + cents(p.amount), 0) / 100;
+  const receivedThisMonth =
     ps
       .filter((p) => String(p.paid_date).startsWith(today().slice(0, 7)))
       .reduce((n, p) => n + cents(p.amount), 0) / 100;
@@ -76,9 +77,12 @@ export function DashboardPage() {
         </Link>
         <Link to="/receber?tab=paid" className="stat">
           <CheckCircle2 />
-          <span>Recebido neste mês</span>
+          <span>Recebido</span>
           <strong>{money(received)}</strong>
-          <small>{money(undistributed)} a distribuir</small>
+          <small>
+            {money(receivedThisMonth)} neste mês · {money(undistributed)} a
+            distribuir
+          </small>
         </Link>
         <Link to="/requisicoes" className="stat">
           <FileText />

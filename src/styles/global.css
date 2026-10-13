@@ -1025,3 +1025,21 @@ pre {
 .payment-origins {
   max-width: 360px;
 }
+
+.menu-backdrop {
+  display: none;
+}
+@media (max-width: 760px) {
+  .sidebar {
+    z-index: 50;
+  }
+  .menu-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+    background: rgba(22, 48, 40, 0.3);
+    border-radius: 0;
+    padding: 0;
+  }
+}

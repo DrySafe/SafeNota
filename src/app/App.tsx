@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { Routes, Route, NavLink, Navigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -98,10 +98,26 @@ export function App() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
+  useEffect(() => {
+    if (!menu) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenu(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [menu]);
   if (!a.ready) return <main className="loading">Carregando sessão…</main>;
   if (!a.user && !a.demo) return <Login />;
   return (
     <div className="app-shell">
+      {menu && (
+        <button
+          type="button"
+          className="menu-backdrop"
+          aria-label="Fechar menu ao tocar fora"
+          onClick={() => setMenu(false)}
+        />
+      )}
       <aside className={`sidebar ${menu ? "open" : ""}`}>
         <div className="brand">
           S
@@ -158,6 +174,7 @@ export function App() {
           <button
             className="mobile-only icon-button"
             aria-label="Abrir menu"
+            aria-expanded={menu}
             onClick={() => setMenu(true)}
           >
             <Menu />
