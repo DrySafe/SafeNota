@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Plus, Search } from "lucide-react";
 import { useStore, message } from "../../app/Store";
 import { Modal } from "../../components/Modal";
@@ -12,11 +12,20 @@ import {
   paymentState,
   today,
 } from "../../lib/finance";
+import { ReceiptReference } from "./ReceiptReference";
+import { receiptOrigin } from "./origin";
 import type { Row } from "../../types";
 export function PaymentsPage() {
   const s = useStore();
   const [params] = useSearchParams();
-  const [tab, setTab] = useState("pending");
+  const [tab, setTab] = useState(
+    params.get("tab") === "paid" ? "paid" : "pending",
+  );
+  const requestFilter = params.get("requisicao");
+  const requestedTab = params.get("tab");
+  useEffect(() => {
+    setTab(requestedTab === "paid" ? "paid" : "pending");
+  }, [requestedTab, s.panelId]);
   const [search, setSearch] = useState("");
   const [pay, setPay] = useState<Row | true | null>(null);
   const [add, setAdd] = useState(false);
@@ -46,8 +55,13 @@ export function PaymentsPage() {
         cents(r.remaining) > 0 &&
         (!params.get("filter") || paymentState(r, r.remaining) === "Vencido"),
     )
+    .filter(
+      (r) =>
+        !requestFilter ||
+        receiptOrigin(r, s.data).request?.id === requestFilter,
+    )
     .filter((r) =>
-      `${r.title} ${s.current("clients").find((c) => c.id === r.client_id)?.name}`
+      `${r.title} ${receiptOrigin(r, s.data).label} ${receiptOrigin(r, s.data).tickets} ${s.current("clients").find((c) => c.id === r.client_id)?.name}`
         .toLowerCase()
         .includes(search.toLowerCase()),
     );
@@ -87,6 +101,16 @@ export function PaymentsPage() {
           </button>
         )}
       </div>
+      {requestFilter && (
+        <div className="notice">
+          Recebimentos da requisição{" "}
+          {String(
+            s.current("billing_requests").find((r) => r.id === requestFilter)
+              ?.order_number || "",
+          )}{" "}
+          · <Link to="/receber">Ver todos</Link>
+        </div>
+      )}
       {error && (
         <p className="error" role="alert">
           {error}
@@ -98,7 +122,7 @@ export function PaymentsPage() {
             <Search size={18} />
             <input
               aria-label="Pesquisar cobranças"
-              placeholder="Pesquisar cliente ou cobrança"
+              placeholder="Pesquisar cliente, requisição, nota ou chamado"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -116,6 +140,7 @@ export function PaymentsPage() {
                     · Vencimento {dateLabel(r.due_date)}
                   </p>
                 </div>
+                <ReceiptReference receivable={r} />
                 <div className="entity-end">
                   <strong>{money(r.remaining)}</strong>
                   <span
@@ -138,43 +163,84 @@ export function PaymentsPage() {
         </>
       ) : (
         <div className="entity-list">
-          {s.current("payments").map((p) => (
-            <article className="entity-card" key={p.id}>
-              <button className="entity-main" onClick={() => setDetail(p)}>
-                <div>
-                  <h3>
-                    {String(
-                      s.current("clients").find((c) => c.id === p.client_id)
-                        ?.name || "Cliente",
-                    )}
-                  </h3>
-                  <p>
-                    {dateLabel(p.paid_date)} · {String(p.method)} ·{" "}
-                    {p.status === "reversed" ? "Revertido" : "Confirmado"}
-                  </p>
+          {s
+            .current("payments")
+            .filter(
+              (p) =>
+                !requestFilter ||
+                s
+                  .current("payment_allocations")
+                  .some(
+                    (a) =>
+                      a.payment_id === p.id &&
+                      s
+                        .current("receivables")
+                        .some(
+                          (r) =>
+                            r.id === a.receivable_id &&
+                            receiptOrigin(r, s.data).request?.id ===
+                              requestFilter,
+                        ),
+                  ),
+            )
+            .map((p) => (
+              <article className="entity-card" key={p.id}>
+                <button className="entity-main" onClick={() => setDetail(p)}>
+                  <div>
+                    <h3>
+                      {String(
+                        s.current("clients").find((c) => c.id === p.client_id)
+                          ?.name || "Cliente",
+                      )}
+                    </h3>
+                    <p>
+                      {dateLabel(p.paid_date)} · {String(p.method)} ·{" "}
+                      {p.status === "reversed" ? "Revertido" : "Confirmado"}
+                    </p>
+                  </div>
+                </button>
+                <div className="payment-origins">
+                  {s
+                    .current("payment_allocations")
+                    .filter((a) => a.payment_id === p.id)
+                    .map((a) => {
+                      const r = s.data.receivables.find(
+                        (r) =>
+                          r.id === a.receivable_id && r.panel_id === s.panelId,
+                      );
+                      return (
+                        r && (
+                          <div key={a.id}>
+                            <ReceiptReference receivable={r} />
+                            <small>
+                              Recebido nesta cobrança: {money(a.amount)}
+                            </small>
+                          </div>
+                        )
+                      );
+                    })}
                 </div>
-              </button>
-              <div className="entity-end">
-                <strong>{money(p.amount)}</strong>
-                {s.role === "admin" && p.status !== "reversed" && (
-                  <button
-                    className="link"
-                    onClick={async () => {
-                      const reason = prompt("Motivo da reversão:");
-                      if (!reason) return;
-                      try {
-                        await s.reversePayment(p.id, reason);
-                      } catch (e) {
-                        setError(message(e));
-                      }
-                    }}
-                  >
-                    Reverter
-                  </button>
-                )}
-              </div>
-            </article>
-          ))}
+                <div className="entity-end">
+                  <strong>{money(p.amount)}</strong>
+                  {s.role === "admin" && p.status !== "reversed" && (
+                    <button
+                      className="link"
+                      onClick={async () => {
+                        const reason = prompt("Motivo da reversão:");
+                        if (!reason) return;
+                        try {
+                          await s.reversePayment(p.id, reason);
+                        } catch (e) {
+                          setError(message(e));
+                        }
+                      }}
+                    >
+                      Reverter
+                    </button>
+                  )}
+                </div>
+              </article>
+            ))}
           {!s.current("payments").length && (
             <div className="empty">Nenhum pagamento registrado.</div>
           )}
@@ -235,10 +301,19 @@ export function PaymentsPage() {
             .filter((a) => a.payment_id === detail.id)
             .map((a) => (
               <div className="summary-row" key={a.id}>
-                {String(
-                  s.current("receivables").find((r) => r.id === a.receivable_id)
-                    ?.title,
-                )}
+                <div>
+                  {String(
+                    s.data.receivables.find((r) => r.id === a.receivable_id)
+                      ?.title || "Cobrança arquivada",
+                  )}
+                  {(() => {
+                    const r = s.data.receivables.find(
+                      (r) =>
+                        r.id === a.receivable_id && r.panel_id === s.panelId,
+                    );
+                    return r && <ReceiptReference receivable={r} />;
+                  })()}
+                </div>
                 <strong>{money(a.amount)}</strong>
               </div>
             ))}
@@ -259,6 +334,7 @@ function PaymentForm({
 }) {
   const s = useStore();
   const [client, setClient] = useState(String(initial?.client_id || ""));
+  const [selectedReceipt, setSelectedReceipt] = useState(initial?.id || "");
   const [amount, setAmount] = useState(
     initial ? String(initial.remaining) : "",
   );
@@ -301,6 +377,10 @@ function PaymentForm({
           setBusy(true);
           setError("");
           try {
+            if (!Object.values(alloc).some((v) => Number(v) > 0))
+              throw new Error(
+                "Selecione uma requisição/nota ou cobrança e informe o valor recebido para ela.",
+              );
             const id = await s.recordPayment({
               client_id: client,
               amount: Number(amount),
@@ -329,6 +409,7 @@ function PaymentForm({
               onChange={(e) => {
                 setClient(e.target.value);
                 setAlloc({});
+                setSelectedReceipt("");
               }}
             >
               <option value="">Selecione</option>
@@ -347,7 +428,23 @@ function PaymentForm({
               min="0.01"
               step="0.01"
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setAmount(value);
+                const selected = rs.find((r) => r.id === selectedReceipt);
+                if (
+                  selected &&
+                  !Object.entries(alloc).some(
+                    ([id, v]) => id !== selectedReceipt && Number(v) > 0,
+                  )
+                )
+                  setAlloc((v) => ({
+                    ...v,
+                    [selectedReceipt]: String(
+                      Math.min(cents(value), cents(selected.remaining)) / 100,
+                    ),
+                  }));
+              }}
             />
           </label>
           <label>
@@ -370,11 +467,47 @@ function PaymentForm({
             </select>
           </label>
         </div>
+        <label>
+          Requisição / nota a receber
+          <select
+            value={selectedReceipt}
+            onChange={(e) => {
+              const id = e.target.value;
+              setSelectedReceipt(id);
+              const receipt = rs.find((r) => r.id === id);
+              if (!receipt) return;
+              const otherAllocated = Object.entries(alloc)
+                .filter(([key]) => key !== id)
+                .reduce((n, [, v]) => n + cents(v), 0);
+              const available = amount
+                ? Math.max(0, cents(amount) - otherAllocated)
+                : cents(receipt.remaining);
+              if (!amount) setAmount(String(receipt.remaining));
+              setAlloc((v) => ({
+                ...v,
+                [id]: String(
+                  Math.min(cents(receipt.remaining), available) / 100,
+                ),
+              }));
+            }}
+          >
+            <option value="">
+              Selecione uma requisição / nota ou cobrança
+            </option>
+            {rs.map((r) => (
+              <option key={r.id} value={r.id}>
+                {receiptOrigin(r, s.data).label || String(r.title)} · Saldo{" "}
+                {money(r.remaining)}
+              </option>
+            ))}
+          </select>
+        </label>
         <h3>Distribuir entre cobranças</h3>
         {rs.map((r) => (
           <label className="allocation" key={r.id}>
             <span>
               {String(r.title)}
+              <ReceiptReference receivable={r} links={false} />
               <small>Saldo {money(r.remaining)}</small>
             </span>
             <input

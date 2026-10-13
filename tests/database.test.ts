@@ -26,6 +26,7 @@ beforeAll(async () => {
     "202610120002_gmail_and_jobs.sql",
     "202610120003_workflow.sql",
     "202610130004_service_links.sql",
+    "202610130005_requisition_receipts.sql",
   ])
     await db.exec(
       await readFile(
@@ -490,4 +491,124 @@ it("salva e edita seleção da nota, mantém auditoria e rejeita serviço de out
       )
     ).rows,
   ).toHaveLength(2);
+});
+
+it("marcar requisição gerada cria nota/cobrança atomicamente e repetir não duplica", async () => {
+  await login(admin);
+  const service = await value(
+    `insert into public.services(panel_id,client_id,title,ticket_number) values('${panel}','${client}','Fluxo completo','003-1') returning id as v`,
+  );
+  const request = {
+    client_id: client,
+    title: "Gerada",
+    order_number: "workflow-generated",
+    ticket_numbers: "003-1",
+    amount: 150,
+    status: "Faturado",
+  };
+  await expect(
+    db.query("select public.save_requisition_workflow($1,$2,$3,null,null)", [
+      panel,
+      JSON.stringify(request),
+      [service],
+    ]),
+  ).rejects.toThrow();
+  expect(
+    (
+      await db.query(
+        "select * from public.billing_requests where order_number='workflow-generated'",
+      )
+    ).rows,
+  ).toHaveLength(0);
+  const draft = {
+    number: "900",
+    issue_date: "2026-10-13",
+    due_date: "2026-11-05",
+  };
+  const id = (
+    await db.query<{ id: string }>(
+      "select public.save_requisition_workflow($1,$2,$3,null,$4) as id",
+      [panel, JSON.stringify(request), [service], JSON.stringify(draft)],
+    )
+  ).rows[0].id;
+  await db.query("select public.save_requisition_workflow($1,$2,$3,$4,null)", [
+    panel,
+    JSON.stringify(request),
+    [service],
+    id,
+  ]);
+  const invoices = (
+    await db.query<{ id: string }>(
+      "select id from public.invoices where request_id=$1",
+      [id],
+    )
+  ).rows;
+  expect(invoices).toHaveLength(1);
+  const rs = (
+    await db.query<{ id: string; amount: string; due_date: string }>(
+      "select id,amount,due_date::text from public.receivables where invoice_id=$1",
+      [invoices[0].id],
+    )
+  ).rows;
+  expect(rs).toHaveLength(1);
+  expect(Number(rs[0].amount)).toBe(150);
+  expect(rs[0].due_date).toBe("2026-11-05");
+  expect(
+    (
+      await db.query(
+        "select * from public.invoice_services where invoice_id=$1",
+        [invoices[0].id],
+      )
+    ).rows,
+  ).toHaveLength(1);
+  await db.query(
+    "select public.record_payment($1,$2,150,'2026-10-13','PIX','',$3,gen_random_uuid())",
+    [panel, client, JSON.stringify([{ receivable_id: rs[0].id, amount: 150 }])],
+  );
+  const paid = (
+    await db.query<{ paid: string }>(
+      "select sum(a.amount)::text as paid from public.payment_allocations a join public.payments p on p.id=a.payment_id and p.status='active' join public.receivables r on r.id=a.receivable_id join public.invoices i on i.id=r.invoice_id where i.request_id=$1",
+      [id],
+    )
+  ).rows[0];
+  expect(Number(paid.paid)).toBe(150);
+  await db.query("select public.save_requisition_workflow($1,$2,$3,$4,null)", [
+    panel,
+    JSON.stringify({ ...request, status: "A gerar" }),
+    [service],
+    id,
+  ]);
+  expect(
+    (
+      await db.query("select status from public.billing_requests where id=$1", [
+        id,
+      ])
+    ).rows[0],
+  ).toEqual({ status: "Faturado" });
+});
+
+it("consulta não pode gerar nota/cobrança pelo fluxo de requisição", async () => {
+  await login(operator);
+  await expect(
+    db.query("select public.save_requisition_workflow($1,$2,$3,null,$4)", [
+      panel,
+      JSON.stringify({
+        client_id: client,
+        title: "Forbidden",
+        order_number: "forbidden-flow",
+        amount: 80,
+        status: "Faturado",
+      }),
+      [],
+      JSON.stringify({ number: "999", issue_date: "2026-10-13" }),
+    ]),
+  ).rejects.toThrow();
+  await login(admin);
+  expect(
+    (
+      await db.query(
+        "select * from public.billing_requests where order_number='forbidden-flow'",
+      )
+    ).rows,
+  ).toHaveLength(0);
 });

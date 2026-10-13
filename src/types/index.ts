@@ -40,6 +40,8 @@ export interface Field {
     | "email"
     | "service-list";
   required?: boolean;
+  defaultValue?: unknown;
+  showIf?: (values: Record<string, unknown>) => boolean;
   options?: string[];
   choices?: { value: string; label: string }[];
   relation?: Table;

@@ -80,7 +80,38 @@ export function InvoicesPage() {
               r.client_id === item.client,
           );
         let id: string;
-        if (demo) {
+        const registered = request
+          ? s
+              .current("invoices")
+              .filter(
+                (note) =>
+                  note.client_id === item.client &&
+                  note.request_id === request.id &&
+                  note.number === inv.number &&
+                  note.status === "Gerada" &&
+                  !note.fiscal_key,
+              )
+          : [];
+        if (registered.length > 1)
+          throw new Error(
+            "Há várias notas com este número na requisição. Confira os vínculos antes de importar.",
+          );
+        if (registered.length === 1) {
+          if (item.receivable)
+            throw new Error(
+              "Esta nota já possui cobrança vinculada. Não selecione outra cobrança para o XML.",
+            );
+          id = await s.save(
+            "invoices",
+            {
+              ...inv,
+              client_id: item.client,
+              request_id: request!.id,
+              status: "Gerada",
+            },
+            registered[0].id,
+          );
+        } else if (demo) {
           id = await s.save("invoices", {
             _receivable_id: item.receivable,
             title: inv.title,

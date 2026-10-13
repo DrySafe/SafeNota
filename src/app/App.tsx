@@ -3,7 +3,6 @@ import { Routes, Route, NavLink, Navigate } from "react-router-dom";
 import {
   LayoutDashboard,
   BriefcaseBusiness,
-  FileText,
   Wallet,
   Users,
   Mail,
@@ -82,7 +81,6 @@ const nav = [
   ["/", "Resumo", LayoutDashboard],
   ["/servicos", "Serviços", BriefcaseBusiness],
   ["/requisicoes", "Requisições de nota", ScrollText],
-  ["/notas", "Notas fiscais", FileText],
   ["/receber", "Recebimentos", Wallet],
   ["/clientes", "Clientes", Users],
   ["/contratos", "Contratos", ShieldCheck],

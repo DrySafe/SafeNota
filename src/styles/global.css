@@ -1000,3 +1000,22 @@ pre {
 .service-choice input:disabled + span {
   opacity: 0.55;
 }
+
+.receipt-reference {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 12px;
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+.receipt-reference a {
+  text-decoration: underline;
+}
+.receipt-reference small {
+  display: block;
+  flex-basis: 100%;
+}
+.payment-origins {
+  max-width: 360px;
+}

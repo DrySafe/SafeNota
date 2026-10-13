@@ -2,7 +2,13 @@ import { expect, test, type Page } from "@playwright/test";
 async function navigate(page: Page, path: string) {
   if ((page.viewportSize()?.width || 1000) < 760)
     await page.getByRole("button", { name: "Abrir menu", exact: true }).click();
-  await page.locator(`.sidebar a[href="${path}"]`).click();
+  await page
+    .locator(`.sidebar a[href="${path === "/notas" ? "/requisicoes" : path}"]`)
+    .click();
+  if (path === "/notas")
+    await page
+      .getByRole("link", { name: "Importar XML / conferir documentos" })
+      .click();
 }
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -285,4 +291,102 @@ test("requisição seleciona serviços e número da nota abre o documento corres
   await expect(page.getByRole("dialog")).toContainText("24543-1");
   await page.getByRole("button", { name: "Fechar", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+test("requisição gerada vira pendência com chamados e pagamento atualiza dashboard", async ({
+  page,
+}) => {
+  await expect(page.locator('.sidebar a[href="/notas"]')).toHaveCount(0);
+  await navigate(page, "/requisicoes");
+  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByLabel("Descrição", { exact: false })
+    .first()
+    .fill("Requisição para receber");
+  await dialog.getByLabel("Cliente", { exact: false }).selectOption("client-1");
+  await dialog.getByLabel("Número da requisição / pedido").fill("4500088888");
+  await dialog
+    .getByRole("checkbox", { name: "Adicionar serviço 24543-1", exact: true })
+    .check();
+  await dialog.getByLabel("Valor solicitado").fill("150");
+  await dialog
+    .getByLabel("Situação", { exact: false })
+    .selectOption("Faturado");
+  await dialog.getByLabel("Número da nota já emitida").fill("900");
+  await dialog.getByLabel("Data de emissão da nota").fill("2026-10-13");
+  await dialog.getByLabel("Vencimento do recebimento").fill("2026-11-02");
+  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  const req = page.locator(".entity-card").filter({ hasText: "4500088888" });
+  await expect(req).toContainText("Gerada");
+  await expect(req).toContainText("NF 900");
+  await req.getByRole("button", { name: "Editar", exact: true }).click();
+  await expect(dialog.getByLabel("Número da nota já emitida")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await navigate(page, "/notas");
+  await page.getByRole("button", { name: "Importar XML em lote" }).click();
+  const xml =
+    '<NFSe xmlns="http://www.sped.fazenda.gov.br/nfse"><infNFSe Id="NFSworkflow-xml"><nNFSe>900</nNFSe><emit><CNPJ>00000000000001</CNPJ></emit><valores><vLiq>150.00</vLiq></valores><DPS><infDPS><dhEmi>2026-10-13T12:00:00-03:00</dhEmi><toma><CNPJ>00000000000002</CNPJ><xNome>Cliente exemplo</xNome></toma><xDescServ>Pedido: 4500088888 Chamado: 24543-1</xDescServ><vServ>150.00</vServ></infDPS></DPS></infNFSe></NFSe>';
+  await dialog
+    .locator("input[type=file]")
+    .setInputFiles({
+      name: "nota-900.xml",
+      mimeType: "application/xml",
+      buffer: Buffer.from(xml),
+    });
+  await dialog
+    .getByRole("combobox", { name: "Cliente", exact: true })
+    .selectOption("client-1");
+  await dialog.getByRole("button", { name: "Confirmar importação" }).click();
+  await expect(dialog.getByRole("status")).toContainText("Importada");
+  await dialog.getByRole("button", { name: "Fechar", exact: true }).click();
+  await navigate(page, "/");
+  await expect(
+    page
+      .locator(".stat")
+      .filter({ has: page.getByText("A receber", { exact: true }) }),
+  ).toContainText("230,00");
+  await navigate(page, "/receber");
+  await expect(page.locator(".entity-card")).toHaveCount(2);
+  const pending = page.locator(".entity-card").filter({ hasText: "NF 900" });
+  await expect(pending).toContainText("24543-1");
+  await expect(pending).toContainText("02/11/2026");
+  await pending
+    .getByRole("link", { name: "Requisição 4500088888", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText(
+    "Requisição para receber",
+  );
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  await navigate(page, "/receber");
+  await page
+    .getByRole("button", { name: "Registrar pagamento", exact: true })
+    .click();
+  await dialog
+    .getByRole("combobox", { name: "Cliente", exact: true })
+    .selectOption("client-1");
+  await dialog.getByLabel("Requisição / nota a receber").selectOption({
+    label: "Requisição 4500088888 · NF 900 · Saldo R$ 150,00",
+  });
+  await expect(dialog.getByLabel("Valor recebido")).toHaveValue("150");
+  await dialog.getByRole("button", { name: "Confirmar recebimento" }).click();
+  await expect(dialog).toContainText("Requisição 4500088888");
+  await expect(dialog).toContainText("NF 900");
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  await expect(page.locator(".entity-card")).toContainText(
+    "Requisição 4500088888",
+  );
+  await navigate(page, "/");
+  await expect(
+    page
+      .locator(".stat")
+      .filter({ has: page.getByText("A receber", { exact: true }) }),
+  ).toContainText("80,00");
+  await expect(
+    page.locator(".stat").filter({ hasText: "Recebido neste mês" }),
+  ).toContainText("150,00");
+  await navigate(page, "/requisicoes");
+  await expect(req).toContainText("Pago");
 });

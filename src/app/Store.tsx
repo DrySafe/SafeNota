@@ -150,21 +150,36 @@ function useStoreValue() {
       ? (payload._service_ids as string[])
       : null;
     delete payload._service_ids;
+    const invoiceDraft = {
+      number: payload._invoice_number,
+      issue_date: payload._invoice_date,
+      due_date: payload._invoice_due_date,
+    };
+    delete payload._invoice_number;
+    delete payload._invoice_date;
+    delete payload._invoice_due_date;
     const linkTable =
       table === "billing_requests" ? "request_services" : "invoice_services";
     const parentField =
       table === "billing_requests" ? "request_id" : "invoice_id";
     const selectedServices =
       providedServices ||
-      (table === "invoices" && payload.request_id
-        ? current("request_services")
-            .filter((r) => r.request_id === payload.request_id)
-            .map((r) => String(r.service_id))
-        : id
-          ? current(linkTable)
-              .filter((r) => r[parentField] === id)
+      (table === "invoices" &&
+      id &&
+      current("invoices").find((i) => i.id === id)?.request_id ===
+        payload.request_id
+        ? current("invoice_services")
+            .filter((l) => l.invoice_id === id)
+            .map((l) => String(l.service_id))
+        : table === "invoices" && payload.request_id
+          ? current("request_services")
+              .filter((r) => r.request_id === payload.request_id)
               .map((r) => String(r.service_id))
-          : []);
+          : id
+            ? current(linkTable)
+                .filter((r) => r[parentField] === id)
+                .map((r) => String(r.service_id))
+            : []);
     function linksFor(key: string) {
       return [...new Set(selectedServices)].map(
         (service_id) =>
@@ -203,6 +218,105 @@ function useStoreValue() {
           )
         )
           throw new Error("Selecione uma requisição do mesmo cliente.");
+      }
+      if (table === "billing_requests") {
+        const existingNotes = current("invoices").filter(
+          (i) => i.request_id === key && i.status === "Gerada",
+        );
+        const generate = payload.status === "Faturado" && !existingNotes.length;
+        if (
+          generate &&
+          (!String(invoiceDraft.number || "").trim() ||
+            !invoiceDraft.issue_date ||
+            Number(payload.amount) <= 0)
+        )
+          throw new Error(
+            "Informe o número, a data da nota já emitida e um valor positivo.",
+          );
+        const stamp = new Date().toISOString();
+        const invoiceId = crypto.randomUUID();
+        const invoice = {
+          id: invoiceId,
+          panel_id: panelId,
+          created_at: stamp,
+          client_id: payload.client_id,
+          request_id: key,
+          title: `NF ${invoiceDraft.number} · Requisição ${payload.order_number}`,
+          number: String(invoiceDraft.number || "").trim(),
+          issue_date: invoiceDraft.issue_date,
+          amount: payload.amount,
+          net_amount: payload.amount,
+          status: "Gerada",
+          description: `Requisição: ${payload.order_number} · Chamados: ${payload.ticket_numbers || ""}`,
+        } as Row;
+        const request = {
+          ...payload,
+          id: key,
+          created_at: stamp,
+          ...(existingNotes.length
+            ? {
+                status:
+                  existingNotes.reduce((n, i) => n + cents(i.amount), 0) >=
+                  cents(payload.amount)
+                    ? "Faturado"
+                    : "Parcialmente faturado",
+              }
+            : {}),
+        } as Row;
+        setData((d) => ({
+          ...d,
+          billing_requests: id
+            ? d.billing_requests.map((r) =>
+                r.id === key
+                  ? { ...r, ...request, created_at: r.created_at }
+                  : r,
+              )
+            : [request, ...d.billing_requests],
+          request_services: [
+            ...linksFor(key),
+            ...d.request_services.filter((l) => l.request_id !== key),
+          ],
+          ...(generate
+            ? {
+                invoices: [invoice, ...d.invoices],
+                invoice_services: [
+                  ...selectedServices.map(
+                    (service_id) =>
+                      ({
+                        id: crypto.randomUUID(),
+                        panel_id: panelId,
+                        created_at: stamp,
+                        invoice_id: invoiceId,
+                        service_id,
+                      }) as Row,
+                  ),
+                  ...d.invoice_services,
+                ],
+                receivables: [
+                  {
+                    id: crypto.randomUUID(),
+                    panel_id: panelId,
+                    created_at: stamp,
+                    client_id: payload.client_id,
+                    invoice_id: invoiceId,
+                    title: invoice.title,
+                    amount: payload.amount,
+                    due_date:
+                      invoiceDraft.due_date ||
+                      dueAfter(String(invoiceDraft.issue_date)),
+                    status: "active",
+                  } as Row,
+                  ...d.receivables,
+                ],
+              }
+            : {}),
+          audit_events: [
+            audit(id ? "updated" : "created", table, key),
+            ...(generate ? [audit("created", "invoices", invoiceId)] : []),
+            ...d.audit_events,
+          ],
+        }));
+        return key;
       }
       if (table === "invoices" && !id) {
         if (
@@ -267,7 +381,7 @@ function useStoreValue() {
               { ...payload, id: key, created_at: new Date().toISOString() },
               ...d[table],
             ],
-        ...(table === "billing_requests" || table === "invoices"
+        ...(table === "invoices"
           ? {
               [linkTable]: [
                 ...linksFor(key),
@@ -294,11 +408,12 @@ function useStoreValue() {
               p_id: id || null,
               p_receivable: receivable,
             })
-          : await supabase!.rpc("save_requisition", {
+          : await supabase!.rpc("save_requisition_workflow", {
               p_panel: panelId,
               p_request: payload,
               p_services: selectedServices,
               p_id: id || null,
+              p_invoice: invoiceDraft,
             });
       if (r.error) throw r.error;
       await refresh();

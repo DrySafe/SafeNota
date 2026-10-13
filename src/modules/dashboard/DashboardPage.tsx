@@ -6,6 +6,7 @@ import {
   FileText,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { ReceiptReference } from "../payments/ReceiptReference";
 import type { Row } from "../../types";
 import { useStore } from "../../app/Store";
 import {
@@ -73,7 +74,7 @@ export function DashboardPage() {
           </strong>
           <small>{overdue.length} precisam de atenção</small>
         </Link>
-        <Link to="/receber" className="stat">
+        <Link to="/receber?tab=paid" className="stat">
           <CheckCircle2 />
           <span>Recebido neste mês</span>
           <strong>{money(received)}</strong>
@@ -112,6 +113,7 @@ export function DashboardPage() {
                     )}{" "}
                     · {dateLabel(r.due_date)}
                   </small>
+                  <ReceiptReference receivable={r} links={false} />
                 </div>
                 <div>
                   <strong>{money(r.balance)}</strong>
@@ -143,8 +145,8 @@ export function DashboardPage() {
             <span>Preparar notas das requisições</span>
             <ArrowUpRight size={18} />
           </Link>
-          <Link className="task-link" to="/notas">
-            <span>Importar XML das notas</span>
+          <Link className="task-link" to="/requisicoes">
+            <span>Conferir notas das requisições</span>
             <ArrowUpRight size={18} />
           </Link>
           <Link className="task-link" to="/contratos">
