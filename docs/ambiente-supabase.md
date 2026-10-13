@@ -11,7 +11,7 @@ Verificação em 13/10/2026. Único projeto autorizado: `fqqnzmhvlvwxlcfwseof`, 
 - Job `safenota-monthly-billing`, diário às 08:00 UTC / 05:00 de São Paulo, gerando competências sem duplicação.
 - Edge Functions `gmail` e `gmail-callback` ativas, versão 1. O gateway aceita o callback Google; a função Gmail verifica autenticação ou segredo do agendador antes de ações privilegiadas.
 - Segredos internos `TOKEN_ENCRYPTION_KEY` e `SYNC_CRON_SECRET` gerados criptograficamente e guardados somente no Supabase. Nenhum valor foi escrito no Git ou nos logs.
-- `APP_ORIGIN` configurado provisoriamente para desenvolvimento. Redirecionamentos localhost:5173 e 127.0.0.1:5173 adicionados ao Auth. Site URL existente e confirmação de e-mail preservados.
+- `APP_ORIGIN` e Site URL configurados para `https://safe-nota.vercel.app`. A origem de produção e seus caminhos foram adicionados aos redirecionamentos Auth; os redirecionamentos locais e a confirmação de e-mail foram preservados.
 
 ## Evidência
 
@@ -23,10 +23,10 @@ O frontend foi compilado com as variáveis do projeto autorizado. Os módulos s�
 
 ## Necessário para publicação completa
 
-1. Definir hospedagem e endereço público do webapp. Atualizar Site URL, redirecionamentos Auth e `APP_ORIGIN` para esse endereço.
+1. Configurar `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no ambiente Production da Vercel e gerar um novo deployment. O endereço informado é `https://safe-nota.vercel.app`; Site URL, redirecionamentos e `APP_ORIGIN` já correspondem a ele. Veja [vercel.md](vercel.md).
 2. Configurar e verificar SMTP para confirmações de conta em produção. O projeto está com o serviço padrão de e-mail, sem SMTP personalizado.
 3. Configurar `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` nos segredos das Edge Functions, habilitar Gmail API e registrar o callback `https://fqqnzmhvlvwxlcfwseof.supabase.co/functions/v1/gmail-callback` no cliente OAuth Google.
 4. Completar consentimento/verificação Google conforme o público e o escopo. Validar captura dos modelos reais antes de ativar a rotina automática de Gmail.
 5. Definir retenção de documentos e logs, backups e recuperação de conta antes de disponibilizar a clientes.
 
-Nenhum domínio público foi inventado e nenhum frontend foi publicado em hospedagem externa nesta configuração. Gmail ainda não captura e-mails reais; sua infraestrutura está implantada, mas faltam as credenciais Google.
+O endereço público foi informado pelo usuário, que publicou o frontend na Vercel. As variáveis da Vercel serão cadastradas pelo usuário; o deployment de produção ainda não foi verificado nesta sessão. Gmail ainda não captura e-mails reais; sua infraestrutura está implantada, mas faltam as credenciais Google.
