@@ -2,6 +2,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Plus, Search, Pencil, Archive, FileDown } from "lucide-react";
 import { useStore, message } from "../app/Store";
 import { Modal } from "./Modal";
+import { useSearchParams } from "react-router-dom";
+import { ServicePicker } from "../modules/services/ServicePicker";
+import { serviceIdsFor } from "../modules/services/links";
 import { clientFields } from "../modules/clients/fields";
 import { dateLabel, money } from "../lib/finance";
 import { exportCsv } from "../lib/csv";
@@ -13,14 +16,18 @@ export function EntityPage({
   subtitle,
   fields,
   extra,
+  rowExtra,
 }: {
   table: Table;
   title: string;
   subtitle: string;
   fields: Field[];
   extra?: ReactNode;
+  rowExtra?: (row: Row) => ReactNode;
 }) {
   const s = useStore();
+  const [params, setParams] = useSearchParams();
+  const noteId = params.get("nota");
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Row | true | null>(null);
   const [selected, setSelected] = useState<Row | null>(null);
@@ -31,6 +38,24 @@ export function EntityPage({
     setSearch("");
     setError("");
   }, [s.panelId, table]);
+  useEffect(() => {
+    if (table !== "invoices" || !noteId) return;
+    const invoice = s.data.invoices.find(
+      (r) => r.id === noteId && r.panel_id === s.panelId && !r.deleted_at,
+    );
+    if (invoice) {
+      setSelected(invoice);
+      setError("");
+    } else if (!s.loading) setError("Nota não encontrada neste painel.");
+  }, [noteId, s.panelId, s.data.invoices, s.loading, table]);
+  function closeDetails() {
+    setSelected(null);
+    if (table === "invoices" && noteId) {
+      const next = new URLSearchParams(params);
+      next.delete("nota");
+      setParams(next, { replace: true });
+    }
+  }
   const rows = s
     .current(table)
     .filter((r) =>
@@ -119,6 +144,9 @@ export function EntityPage({
                 </p>
               </div>
             </button>
+            {rowExtra && (
+              <div className="entity-associations">{rowExtra(r)}</div>
+            )}
             <div className="entity-end">
               {r.amount !== undefined && <strong>{money(r.amount)}</strong>}
               {r.status !== undefined && (
@@ -182,28 +210,46 @@ export function EntityPage({
       {selected && (
         <Modal
           title={String(selected.title || selected.name || "Detalhes")}
-          onClose={() => setSelected(null)}
+          onClose={closeDetails}
         >
           <dl className="details">
             {fields.map((f) => (
               <div key={f.key}>
                 <dt>{f.label}</dt>
                 <dd>
-                  {f.relation
-                    ? String(
-                        s
-                          .current(f.relation)
-                          .find((r) => r.id === selected[f.key])?.name ||
+                  {f.type === "service-list"
+                    ? s
+                        .current("services")
+                        .filter((service) =>
+                          serviceIdsFor(
+                            selected.id,
+                            table === "invoices" ? "invoice_id" : "request_id",
+                            s.current(
+                              table === "invoices"
+                                ? "invoice_services"
+                                : "request_services",
+                            ),
+                          ).includes(service.id),
+                        )
+                        .map((service) =>
+                          String(service.ticket_number || service.title),
+                        )
+                        .join(", ") || "Nenhum serviço vinculado"
+                    : f.relation
+                      ? String(
                           s
                             .current(f.relation)
-                            .find((r) => r.id === selected[f.key])?.title ||
-                          "—",
-                      )
-                    : f.type === "date"
-                      ? dateLabel(selected[f.key])
-                      : f.type === "number" && f.key.includes("amount")
-                        ? money(selected[f.key])
-                        : String(selected[f.key] || "—")}
+                            .find((r) => r.id === selected[f.key])?.name ||
+                            s
+                              .current(f.relation)
+                              .find((r) => r.id === selected[f.key])?.title ||
+                            "—",
+                        )
+                      : f.type === "date"
+                        ? dateLabel(selected[f.key])
+                        : f.type === "number" && f.key.includes("amount")
+                          ? money(selected[f.key])
+                          : String(selected[f.key] || "—")}
                 </dd>
               </div>
             ))}
@@ -234,7 +280,22 @@ export function EntityForm({
   const s = useStore();
   const [values, setValues] = useState<Record<string, unknown>>(
     row
-      ? { ...row }
+      ? {
+          ...row,
+          ...(fields.some((f) => f.type === "service-list")
+            ? {
+                _service_ids: serviceIdsFor(
+                  row.id,
+                  table === "invoices" ? "invoice_id" : "request_id",
+                  s.current(
+                    table === "invoices"
+                      ? "invoice_services"
+                      : "request_services",
+                  ),
+                ),
+              }
+            : {}),
+        }
       : Object.fromEntries(
           fields
             .filter((f) => f.options || f.choices)
@@ -254,7 +315,9 @@ export function EntityForm({
           fields={clientFields}
           embedded
           onClose={() => setCreatingClient(false)}
-          onSaved={(id) => setValues((v) => ({ ...v, client_id: id }))}
+          onSaved={(id) =>
+            setValues((v) => ({ ...v, client_id: id, _service_ids: [] }))
+          }
         />
       </Modal>
     );
@@ -287,76 +350,130 @@ export function EntityForm({
       }}
     >
       <div className="form-grid">
-        {fields.map((f) => (
-          <div key={f.key} className={f.type === "textarea" ? "full" : ""}>
-            <label>
-              {f.label}
-              {f.required ? " *" : ""}
-              {f.relation || f.options || f.choices ? (
-                <select
-                  required={f.required}
-                  value={String(values[f.key] || "")}
-                  onChange={(e) =>
-                    setValues((v) => ({ ...v, [f.key]: e.target.value }))
-                  }
-                >
-                  <option value="">Selecione</option>
-                  {f.relation
-                    ? s.current(f.relation).map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {String(r.name || r.title || r.number)}
-                        </option>
-                      ))
-                    : f.choices
-                      ? f.choices.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))
-                      : f.options!.map((o) => <option key={o}>{o}</option>)}
-                </select>
-              ) : f.type === "textarea" ? (
-                <textarea
-                  rows={4}
-                  required={f.required}
-                  value={String(values[f.key] || "")}
-                  onChange={(e) =>
-                    setValues((v) => ({ ...v, [f.key]: e.target.value }))
-                  }
-                />
-              ) : (
-                <input
-                  required={f.required}
-                  type={f.type || "text"}
-                  min={f.type === "number" ? 0 : undefined}
-                  max={f.key === "due_day" ? 31 : undefined}
-                  step={f.type === "number" ? "0.01" : undefined}
-                  value={String(values[f.key] ?? "")}
-                  onChange={(e) =>
-                    setValues((v) => ({ ...v, [f.key]: e.target.value }))
-                  }
-                />
-              )}
-            </label>
-            {f.relation === "clients" &&
-              (s.role === "admin" || s.role === "operator") && (
-                <div className="inline-client-action">
-                  {!s.current("clients").length && (
-                    <small>Nenhum cliente neste painel.</small>
-                  )}
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => setCreatingClient(true)}
-                    disabled={busy}
+        {fields.map((f) =>
+          f.type === "service-list" ? (
+            <ServicePicker
+              key={f.key}
+              clientId={String(values.client_id || "")}
+              selected={
+                Array.isArray(values[f.key]) ? (values[f.key] as string[]) : []
+              }
+              disabled={busy}
+              onChange={(ids) =>
+                setValues((v) => ({
+                  ...v,
+                  [f.key]: ids,
+                  ...(table === "billing_requests"
+                    ? {
+                        ticket_numbers: s
+                          .current("services")
+                          .filter((service) => ids.includes(service.id))
+                          .map((service) => service.ticket_number)
+                          .filter(Boolean)
+                          .join(", "),
+                      }
+                    : {}),
+                }))
+              }
+            />
+          ) : (
+            <div key={f.key} className={f.type === "textarea" ? "full" : ""}>
+              <label>
+                {f.label}
+                {f.required ? " *" : ""}
+                {f.relation || f.options || f.choices ? (
+                  <select
+                    required={f.required}
+                    value={String(values[f.key] || "")}
+                    onChange={(e) =>
+                      setValues((v) => ({
+                        ...v,
+                        [f.key]: e.target.value,
+                        ...(f.key === "client_id"
+                          ? {
+                              _service_ids: [],
+                              ...(table === "invoices"
+                                ? { request_id: null }
+                                : {}),
+                            }
+                          : {}),
+                        ...(f.key === "request_id"
+                          ? {
+                              _service_ids: serviceIdsFor(
+                                e.target.value,
+                                "request_id",
+                                s.current("request_services"),
+                              ),
+                            }
+                          : {}),
+                      }))
+                    }
                   >
-                    <Plus size={16} />
-                    Novo cliente
-                  </button>
-                </div>
-              )}
-          </div>
-        ))}
+                    <option value="">Selecione</option>
+                    {f.relation
+                      ? s
+                          .current(f.relation)
+                          .filter(
+                            (r) =>
+                              f.key !== "request_id" ||
+                              r.client_id === values.client_id,
+                          )
+                          .map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {String(r.name || r.title || r.number)}
+                            </option>
+                          ))
+                      : f.choices
+                        ? f.choices.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))
+                        : f.options!.map((o) => <option key={o}>{o}</option>)}
+                  </select>
+                ) : f.type === "textarea" ? (
+                  <textarea
+                    rows={4}
+                    required={f.required}
+                    value={String(values[f.key] || "")}
+                    onChange={(e) =>
+                      setValues((v) => ({ ...v, [f.key]: e.target.value }))
+                    }
+                  />
+                ) : (
+                  <input
+                    required={f.required}
+                    type={f.type || "text"}
+                    min={f.type === "number" ? 0 : undefined}
+                    max={f.key === "due_day" ? 31 : undefined}
+                    step={f.type === "number" ? "0.01" : undefined}
+                    value={String(values[f.key] ?? "")}
+                    onChange={(e) =>
+                      setValues((v) => ({ ...v, [f.key]: e.target.value }))
+                    }
+                  />
+                )}
+              </label>
+              {f.relation === "clients" &&
+                (s.role === "admin" || s.role === "operator") && (
+                  <div className="inline-client-action">
+                    {!s.current("clients").length && (
+                      <small>Nenhum cliente neste painel.</small>
+                    )}
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => setCreatingClient(true)}
+                      disabled={busy}
+                    >
+                      <Plus size={16} />
+                      Novo cliente
+                    </button>
+                  </div>
+                )}
+            </div>
+          ),
+        )}
       </div>
       {error && (
         <p className="error" role="alert">

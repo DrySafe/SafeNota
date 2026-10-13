@@ -29,7 +29,7 @@ src/
     dashboard/         # Resumo financeiro e pendências
     clients/           # Clientes contratantes
     services/          # Serviços, chamados e referências
-    requests/          # Pedidos de emissão e orientações fiscais
+    requests/          # Requisições de nota e serviços selecionados
     contracts/         # Contratos e competências mensais
     projects/          # Projetos e conclusão de etapas
     invoices/          # Notas, parser XML, lote/ZIP e cancelamento registrado
@@ -52,7 +52,7 @@ supabase/
 ## Funcionalidades desta implementação
 
 - Usuário em vários painéis; papéis admin, operator e viewer por painel. Vários administradores, proteção do último administrador e convites por código com e-mail confirmado.
-- Cadastros de clientes, serviços, pedidos, contratos e projetos. Etapas de projeto podem ser marcadas como concluídas.
+- Cadastros de clientes, serviços, requisições de nota, contratos e projetos. Etapas de projeto podem ser marcadas como concluídas.
 - XML nacional v1.01, múltiplos arquivos e ZIP com limites. Extração de pedido/chamados na descrição, detecção de duplicatas e confirmação do cliente.
 - Cadastro de nota gera cobrança; importação pode vincular competência existente sem duplicar o valor a receber. Valor fiscal e valor esperado são separados.
 - Depósito distribuído entre várias cobranças do mesmo cliente; pagamentos parciais, saldo não distribuído, idempotência e reversão restrita a administradores.
@@ -63,7 +63,7 @@ supabase/
 - Regras Gmail por remetente, palavras-chave e padrões simples. Revisão com edição de campos antes de confirmar cadastro.
 - Exportação CSV de cadastros, com neutralização de fórmulas de planilha.
 
-Nesta primeira implementação, chamados de um pedido são conservados em um campo de referências; cada nota aponta para um pedido. Não há ainda interface para ratear uma nota entre múltiplos pedidos. Projetos usam etapas textuais com estado de conclusão, sem datas individuais. O modelo completo em `docs/modelo-de-dados.md` descreve extensões futuras, não uma declaração de tabelas já implantadas.
+Requisições selecionam os serviços em `request_services`. Cada nota aponta para uma requisição e conserva sua própria seleção em `invoice_services`: ao criar/importar a nota, os serviços da requisição são copiados. Alterações posteriores da requisição não mudam os serviços de notas já geradas. A tela de serviços mostra notas vinculadas com links diretos e identifica atendimentos sem nota ativa. Notas canceladas permanecem visíveis com indicação de cancelamento; notas arquivadas deixam de contar como geradas. O campo de chamados continua disponível para compatibilidade com e-mail/XML. Não há ainda interface para ratear uma nota entre múltiplos pedidos. Projetos usam etapas textuais com estado de conclusão, sem datas individuais. O modelo completo em `docs/modelo-de-dados.md` descreve extensões futuras, não uma declaração de tabelas já implantadas.
 
 ## Supabase e Google
 

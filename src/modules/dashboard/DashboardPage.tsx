@@ -79,9 +79,9 @@ export function DashboardPage() {
           <strong>{money(received)}</strong>
           <small>{money(undistributed)} a distribuir</small>
         </Link>
-        <Link to="/pedidos" className="stat">
+        <Link to="/requisicoes" className="stat">
           <FileText />
-          <span>Pedidos a gerar</span>
+          <span>Requisições a gerar</span>
           <strong>
             {
               s
@@ -139,8 +139,8 @@ export function DashboardPage() {
               }
             </strong>
           </Link>
-          <Link className="task-link" to="/pedidos">
-            <span>Preparar notas dos pedidos</span>
+          <Link className="task-link" to="/requisicoes">
+            <span>Preparar notas das requisições</span>
             <ArrowUpRight size={18} />
           </Link>
           <Link className="task-link" to="/notas">

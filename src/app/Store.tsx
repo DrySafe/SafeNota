@@ -139,13 +139,71 @@ function useStoreValue() {
         "audit_events",
         "attachments",
         "captured_messages",
+        "request_services",
+        "invoice_services",
       ].includes(table)
     )
       throw new Error("Use o fluxo específico deste módulo.");
     const payload: Record<string, unknown> = { ...values, panel_id: panelId };
     delete payload.id;
+    const providedServices = Array.isArray(payload._service_ids)
+      ? (payload._service_ids as string[])
+      : null;
+    delete payload._service_ids;
+    const linkTable =
+      table === "billing_requests" ? "request_services" : "invoice_services";
+    const parentField =
+      table === "billing_requests" ? "request_id" : "invoice_id";
+    const selectedServices =
+      providedServices ||
+      (table === "invoices" && payload.request_id
+        ? current("request_services")
+            .filter((r) => r.request_id === payload.request_id)
+            .map((r) => String(r.service_id))
+        : id
+          ? current(linkTable)
+              .filter((r) => r[parentField] === id)
+              .map((r) => String(r.service_id))
+          : []);
+    function linksFor(key: string) {
+      return [...new Set(selectedServices)].map(
+        (service_id) =>
+          ({
+            id: crypto.randomUUID(),
+            panel_id: panelId,
+            created_at: new Date().toISOString(),
+            [parentField]: key,
+            service_id,
+          }) as Row,
+      );
+    }
     if (demo) {
       const key = id || crypto.randomUUID();
+      if (table === "billing_requests" || table === "invoices") {
+        if (
+          selectedServices.some(
+            (serviceId) =>
+              !current("services").some(
+                (service) =>
+                  service.id === serviceId &&
+                  service.client_id === payload.client_id,
+              ),
+          )
+        )
+          throw new Error(
+            "Selecione serviços ativos do mesmo cliente neste painel.",
+          );
+        if (
+          table === "invoices" &&
+          payload.request_id &&
+          !current("billing_requests").some(
+            (request) =>
+              request.id === payload.request_id &&
+              request.client_id === payload.client_id,
+          )
+        )
+          throw new Error("Selecione uma requisição do mesmo cliente.");
+      }
       if (table === "invoices" && !id) {
         if (
           payload.fiscal_key &&
@@ -175,6 +233,10 @@ function useStoreValue() {
         setData((d) => ({
           ...d,
           invoices: [invoice, ...d.invoices],
+          invoice_services: [...linksFor(key), ...d.invoice_services],
+          billing_requests: d.billing_requests.map((r) =>
+            r.id === payload.request_id ? { ...r, status: "Faturado" } : r,
+          ),
           receivables: existingId
             ? d.receivables.map((r) =>
                 r.id === existingId ? { ...r, invoice_id: key } : r,
@@ -205,6 +267,14 @@ function useStoreValue() {
               { ...payload, id: key, created_at: new Date().toISOString() },
               ...d[table],
             ],
+        ...(table === "billing_requests" || table === "invoices"
+          ? {
+              [linkTable]: [
+                ...linksFor(key),
+                ...d[linkTable].filter((r) => r[parentField] !== key),
+              ],
+            }
+          : {}),
         audit_events: [
           audit(id ? "updated" : "created", table, key),
           ...d.audit_events,
@@ -212,12 +282,24 @@ function useStoreValue() {
       }));
       return key;
     }
-    if (table === "invoices" && !id) {
-      const r = await supabase!.rpc("import_invoice", {
-        p_panel: panelId,
-        p_invoice: payload,
-        p_receivable: null,
-      });
+    if (table === "invoices" || table === "billing_requests") {
+      const receivable = payload._receivable_id || null;
+      delete payload._receivable_id;
+      const r =
+        table === "invoices"
+          ? await supabase!.rpc("save_invoice", {
+              p_panel: panelId,
+              p_invoice: payload,
+              p_services: providedServices,
+              p_id: id || null,
+              p_receivable: receivable,
+            })
+          : await supabase!.rpc("save_requisition", {
+              p_panel: panelId,
+              p_request: payload,
+              p_services: selectedServices,
+              p_id: id || null,
+            });
       if (r.error) throw r.error;
       await refresh();
       return r.data as string;
@@ -484,16 +566,14 @@ function useStoreValue() {
     const path = `${panelId}/${crypto.randomUUID()}/${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
     const u = await supabase!.storage.from("documents").upload(path, file);
     if (u.error) throw u.error;
-    const r = await supabase!
-      .from("attachments")
-      .insert({
-        panel_id: panelId,
-        entity,
-        entity_id: id,
-        path,
-        name: file.name,
-        size: file.size,
-      });
+    const r = await supabase!.from("attachments").insert({
+      panel_id: panelId,
+      entity,
+      entity_id: id,
+      path,
+      name: file.name,
+      size: file.size,
+    });
     if (r.error) {
       await supabase!.storage.from("documents").remove([path]);
       throw r.error;

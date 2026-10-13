@@ -13,6 +13,8 @@ export const tables: Table[] = [
   "captured_messages",
   "audit_events",
   "attachments",
+  "request_services",
+  "invoice_services",
 ];
 export const emptyData = () =>
   Object.fromEntries(tables.map((t) => [t, []])) as unknown as Data;
@@ -56,7 +58,7 @@ export function demoData(): Data {
   ];
   data.billing_requests = [
     row("request-1", {
-      title: "Pedido de emissão",
+      title: "Requisição de nota",
       client_id: "client-1",
       order_number: "4500010497",
       ticket_numbers: "23628-1",
@@ -76,6 +78,12 @@ export function demoData(): Data {
       issue_date: "2026-09-15",
       status: "Gerada",
     }),
+  ];
+  data.request_services = [
+    row("request-link-1", { request_id: "request-1", service_id: "service-1" }),
+  ];
+  data.invoice_services = [
+    row("invoice-link-1", { invoice_id: "invoice-1", service_id: "service-1" }),
   ];
   data.receivables = [
     row("receivable-1", {

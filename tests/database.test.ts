@@ -25,6 +25,7 @@ beforeAll(async () => {
     "202610120001_initial.sql",
     "202610120002_gmail_and_jobs.sql",
     "202610120003_workflow.sql",
+    "202610130004_service_links.sql",
   ])
     await db.exec(
       await readFile(
@@ -257,4 +258,236 @@ it("rejeita valores monetários não finitos no banco e RPC", async () => {
       `select public.record_payment('${panel}','${client}','NaN','2026-10-12','PIX','','[]','40000000-0000-0000-0000-000000000001')`,
     ),
   ).rejects.toThrow();
+});
+
+it("requisição vincula vários serviços; importação herda vínculos sem alterar notas anteriores", async () => {
+  await login(admin);
+  const a = await value(
+    `insert into public.services(panel_id,client_id,title,ticket_number) values('${panel}','${client}','A','001-1') returning id as v`,
+  );
+  const b = await value(
+    `insert into public.services(panel_id,client_id,title,ticket_number) values('${panel}','${client}','B','002-1') returning id as v`,
+  );
+  const payload = {
+    client_id: client,
+    title: "Requisição",
+    order_number: "request-linked",
+    amount: 80,
+  };
+  const request = (
+    await db.query<{ id: string }>(
+      "select public.save_requisition($1,$2,$3,null) as id",
+      [panel, JSON.stringify(payload), [a, b]],
+    )
+  ).rows[0].id;
+  expect(
+    (
+      await db.query(
+        "select service_id from public.request_services where request_id=$1",
+        [request],
+      )
+    ).rows,
+  ).toHaveLength(2);
+  const invoice = (
+    await db.query<{ id: string }>(
+      "select public.import_invoice($1,$2,null) as id",
+      [
+        panel,
+        JSON.stringify({
+          client_id: client,
+          request_id: request,
+          title: "NF serviços",
+          number: "101",
+          amount: 80,
+          net_amount: 80,
+          issue_date: "2026-10-13",
+        }),
+      ],
+    )
+  ).rows[0].id;
+  expect(
+    (
+      await db.query(
+        "select service_id from public.invoice_services where invoice_id=$1",
+        [invoice],
+      )
+    ).rows,
+  ).toHaveLength(2);
+  await db.query("select public.save_requisition($1,$2,$3,$4)", [
+    panel,
+    JSON.stringify(payload),
+    [a],
+    request,
+  ]);
+  expect(
+    (
+      await db.query(
+        "select service_id from public.invoice_services where invoice_id=$1",
+        [invoice],
+      )
+    ).rows,
+  ).toHaveLength(2);
+  await expect(
+    db.query("update public.services set client_id=$1 where id=$2", [
+      client,
+      a,
+    ]),
+  ).resolves.toBeDefined();
+  await login(outsider);
+  expect(
+    (await db.query("select * from public.invoice_services")).rows,
+  ).toHaveLength(0);
+  await expect(
+    db.query("select public.set_invoice_services($1,$2,$3)", [
+      panel,
+      invoice,
+      [],
+    ]),
+  ).rejects.toThrow();
+});
+
+it("nota com seleção inválida reverte documento e cobrança; consulta não escreve vínculos", async () => {
+  await login(admin);
+  const otherClient = await value(
+    `insert into public.clients(panel_id,name) values('${panel}','Outro cliente') returning id as v`,
+  );
+  const wrong = await value(
+    `insert into public.services(panel_id,client_id,title) values('${panel}','${otherClient}','Incompatível') returning id as v`,
+  );
+  const before = (await db.query("select * from public.receivables")).rows
+    .length;
+  const invoice = {
+    client_id: client,
+    title: "Atomicidade",
+    number: "102",
+    fiscal_key: "atomic-linked",
+    amount: 50,
+    net_amount: 50,
+    issue_date: "2026-10-13",
+  };
+  await expect(
+    db.query("select public.save_invoice($1,$2,$3,null,null)", [
+      panel,
+      JSON.stringify(invoice),
+      [wrong],
+    ]),
+  ).rejects.toThrow();
+  expect(
+    (await db.query("select * from public.receivables")).rows,
+  ).toHaveLength(before);
+  expect(
+    (
+      await db.query(
+        "select * from public.invoices where fiscal_key='atomic-linked'",
+      )
+    ).rows,
+  ).toHaveLength(0);
+  const request = {
+    client_id: client,
+    title: "Invalid",
+    order_number: "invalid-linked",
+    amount: 50,
+  };
+  await expect(
+    db.query("select public.save_requisition($1,$2,$3,null)", [
+      panel,
+      JSON.stringify(request),
+      [wrong],
+    ]),
+  ).rejects.toThrow();
+  expect(
+    (
+      await db.query(
+        "select * from public.billing_requests where order_number='invalid-linked'",
+      )
+    ).rows,
+  ).toHaveLength(0);
+  await expect(
+    db.query(
+      "insert into public.invoice_services(panel_id,invoice_id,service_id) values($1,gen_random_uuid(),$2)",
+      [panel, wrong],
+    ),
+  ).rejects.toThrow();
+  const token = await value(
+    `select public.invite_member('${panel}','operator@example.test','viewer') as v`,
+  );
+  await login(operator);
+  await value(`select public.accept_invitation('${token}') as v`);
+  await expect(
+    db.query("select public.save_requisition($1,$2,$3,null)", [
+      panel,
+      JSON.stringify(request),
+      [],
+    ]),
+  ).rejects.toThrow();
+});
+
+it("salva e edita seleção da nota, mantém auditoria e rejeita serviço de outro painel", async () => {
+  await login(admin);
+  const service = await value(
+    `insert into public.services(panel_id,client_id,title) values('${panel}','${client}','Manual') returning id as v`,
+  );
+  const otherClient = await value(
+    `insert into public.clients(panel_id,name) values('${other}','Cliente painel B') returning id as v`,
+  );
+  const otherService = await value(
+    `insert into public.services(panel_id,client_id,title) values('${other}','${otherClient}','Outro painel') returning id as v`,
+  );
+  const payload = {
+    client_id: client,
+    title: "Manual com serviço",
+    number: "103",
+    amount: 10,
+    net_amount: 10,
+    issue_date: "2026-10-13",
+  };
+  const invoice = (
+    await db.query<{ id: string }>(
+      "select public.save_invoice($1,$2,$3,null,null) as id",
+      [panel, JSON.stringify(payload), [service]],
+    )
+  ).rows[0].id;
+  expect(
+    (
+      await db.query(
+        "select * from public.invoice_services where invoice_id=$1",
+        [invoice],
+      )
+    ).rows,
+  ).toHaveLength(1);
+  await expect(
+    db.query("select public.set_invoice_services($1,$2,$3)", [
+      panel,
+      invoice,
+      [otherService],
+    ]),
+  ).rejects.toThrow();
+  const link = (
+    await db.query<{ id: string }>(
+      "select id from public.invoice_services where invoice_id=$1",
+      [invoice],
+    )
+  ).rows[0].id;
+  await db.query("select public.save_invoice($1,$2,$3,$4,null)", [
+    panel,
+    JSON.stringify({ ...payload, title: "Editada" }),
+    [],
+    invoice,
+  ]);
+  expect(
+    (
+      await db.query(
+        "select * from public.invoice_services where invoice_id=$1",
+        [invoice],
+      )
+    ).rows,
+  ).toHaveLength(0);
+  expect(
+    (
+      await db.query(
+        "select * from public.audit_events where entity='invoice_services' and entity_id=$1",
+        [link],
+      )
+    ).rows,
+  ).toHaveLength(2);
 });

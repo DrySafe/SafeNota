@@ -81,7 +81,7 @@ import { Modal } from "../components/Modal";
 const nav = [
   ["/", "Resumo", LayoutDashboard],
   ["/servicos", "Serviços", BriefcaseBusiness],
-  ["/pedidos", "Pedidos", ScrollText],
+  ["/requisicoes", "Requisições de nota", ScrollText],
   ["/notas", "Notas fiscais", FileText],
   ["/receber", "Recebimentos", Wallet],
   ["/clientes", "Clientes", Users],
@@ -226,7 +226,11 @@ export function App() {
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/clientes" element={<ClientsPage />} />
                 <Route path="/servicos" element={<ServicesPage />} />
-                <Route path="/pedidos" element={<RequestsPage />} />
+                <Route path="/requisicoes" element={<RequestsPage />} />
+                <Route
+                  path="/pedidos"
+                  element={<Navigate to="/requisicoes" replace />}
+                />
                 <Route path="/contratos" element={<ContractsPage />} />
                 <Route path="/projetos" element={<ProjectsPage />} />
                 <Route path="/notas" element={<InvoicesPage />} />

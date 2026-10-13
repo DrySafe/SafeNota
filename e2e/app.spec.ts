@@ -78,7 +78,7 @@ test("layout não ultrapassa largura e módulos abrem", async ({ page }) => {
     "/",
     "/clientes",
     "/servicos",
-    "/pedidos",
+    "/requisicoes",
     "/notas",
     "/receber",
     "/contratos",
@@ -213,4 +213,76 @@ test("cancelar novo cliente preserva serviço e seleção anterior", async ({
   await navigate(page, "/clientes");
   await expect(page.locator(".entity-card")).toHaveCount(1);
   await expect(page.locator(".entity-card")).not.toContainText("Não salvar");
+});
+
+test("requisição seleciona serviços e número da nota abre o documento correspondente", async ({
+  page,
+}) => {
+  await navigate(page, "/servicos");
+  const old = page.locator(".entity-card").filter({ hasText: "23628-1" });
+  await expect(old).toContainText("Nota gerada");
+  const pending = page.locator(".entity-card").filter({ hasText: "24543-1" });
+  await expect(pending).toContainText("Sem nota gerada");
+  await navigate(page, "/requisicoes");
+  await expect(
+    page.getByRole("heading", { name: "Requisições de nota", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  let dialog = page.getByRole("dialog");
+  await dialog
+    .getByLabel("Descrição", { exact: false })
+    .first()
+    .fill("Requisição do chamado BIOS");
+  await dialog.getByLabel("Cliente", { exact: false }).selectOption("client-1");
+  await dialog.getByLabel("Número da requisição / pedido").fill("4500099999");
+  await expect(dialog.getByRole("checkbox")).toHaveCount(2);
+  await dialog
+    .getByRole("checkbox", { name: "Adicionar serviço 24543-1", exact: true })
+    .check();
+  await expect(dialog.getByLabel("Chamados informados")).toHaveValue("24543-1");
+  await dialog.getByLabel("Valor solicitado").fill("150");
+  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  const req = page
+    .locator(".entity-card")
+    .filter({ hasText: "Requisição do chamado BIOS" });
+  await req.getByRole("button", { name: "Editar", exact: true }).click();
+  await expect(
+    page.getByRole("checkbox", {
+      name: "Adicionar serviço 24543-1",
+      exact: true,
+    }),
+  ).toBeChecked();
+  await dialog.getByRole("button", { name: "Fechar", exact: true }).click();
+  await navigate(page, "/notas");
+  await expect(
+    page.getByRole("heading", { name: "Notas fiscais", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  dialog = page.getByRole("dialog");
+  await dialog
+    .getByLabel("Descrição *", { exact: true })
+    .fill("Nota BIOS gerada");
+  await dialog.getByLabel("Número da nota").fill("123");
+  await dialog.getByLabel("Cliente", { exact: false }).selectOption("client-1");
+  await dialog
+    .getByLabel("Requisição de nota", { exact: false })
+    .selectOption({ label: "Requisição do chamado BIOS" });
+  await expect(
+    dialog.getByRole("checkbox", {
+      name: "Adicionar serviço 24543-1",
+      exact: true,
+    }),
+  ).toBeChecked();
+  await dialog.getByLabel("Valor bruto").fill("150");
+  await dialog.getByLabel("Valor líquido").fill("150");
+  await dialog.getByLabel("Emissão").fill("2026-10-13");
+  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await navigate(page, "/servicos");
+  await expect(pending).toContainText("Nota gerada");
+  await pending.getByRole("link", { name: "NF 123", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("Nota BIOS gerada");
+  await expect(page.getByRole("dialog")).toContainText("24543-1");
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });

@@ -214,7 +214,12 @@ export function InvoicesPage() {
             relation: "clients",
             required: true,
           },
-          { key: "request_id", label: "Pedido", relation: "billing_requests" },
+          {
+            key: "request_id",
+            label: "Requisição de nota",
+            relation: "billing_requests",
+          },
+          { key: "_service_ids", label: "Serviços", type: "service-list" },
           { key: "fiscal_key", label: "Chave fiscal" },
           {
             key: "amount",

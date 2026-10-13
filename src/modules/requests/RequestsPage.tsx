@@ -3,8 +3,8 @@ export function RequestsPage() {
   return (
     <EntityPage
       table="billing_requests"
-      title="Pedidos de emissão"
-      subtitle="Confira os chamados e prepare a nota sem perder o prazo."
+      title="Requisições de nota"
+      subtitle="Selecione os serviços e prepare a nota sem perder o prazo."
       fields={[
         { key: "title", label: "Descrição", required: true },
         {
@@ -13,8 +13,13 @@ export function RequestsPage() {
           relation: "clients",
           required: true,
         },
-        { key: "order_number", label: "Número do pedido", required: true },
-        { key: "ticket_numbers", label: "Chamados (separados por vírgula)" },
+        {
+          key: "order_number",
+          label: "Número da requisição / pedido",
+          required: true,
+        },
+        { key: "ticket_numbers", label: "Chamados informados" },
+        { key: "_service_ids", label: "Serviços", type: "service-list" },
         {
           key: "amount",
           label: "Valor solicitado",
