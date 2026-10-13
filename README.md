@@ -67,7 +67,7 @@ Nesta primeira implementação, chamados de um pedido são conservados em um cam
 
 ## Supabase e Google
 
-Siga [docs/implantacao.md](docs/implantacao.md). As migrações e funções estão prontas para implantação, mas não foram aplicadas a um projeto remoto nesta tarefa: não foram fornecidas credenciais do projeto. Gmail real depende de projeto Google, consentimento OAuth e segredos no backend. Rotinas automáticas dependem do agendamento descrito na documentação.
+Siga [docs/implantacao.md](docs/implantacao.md). As três migrações e as duas Edge Functions foram implantadas no projeto `fqqnzmhvlvwxlcfwseof` em 13/10/2026. O banco, o Storage privado e a rotina de contratos foram validados. Veja [docs/ambiente-supabase.md](docs/ambiente-supabase.md) para a evidência e os requisitos restantes. Gmail real depende de projeto Google, consentimento OAuth e segredos no backend. Rotinas automáticas dependem do agendamento descrito na documentação.
 
 ## Verificar
 

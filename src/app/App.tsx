@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { Routes, Route, NavLink, Navigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -17,18 +17,66 @@ import {
 } from "lucide-react";
 import { useAuth, Login } from "../modules/auth/Auth";
 import { useStore, message } from "./Store";
-import { DashboardPage } from "../modules/dashboard/DashboardPage";
-import { ClientsPage } from "../modules/clients/ClientsPage";
-import { ServicesPage } from "../modules/services/ServicesPage";
-import { RequestsPage } from "../modules/requests/RequestsPage";
-import { ContractsPage } from "../modules/contracts/ContractsPage";
-import { ProjectsPage } from "../modules/projects/ProjectsPage";
-import { InvoicesPage } from "../modules/invoices/InvoicesPage";
-import { PaymentsPage } from "../modules/payments/PaymentsPage";
-import { IntegrationsPage } from "../modules/integrations/IntegrationsPage";
-import { MembersPage } from "../modules/members/MembersPage";
-import { ArchivedPage } from "../modules/audit/ArchivedPage";
-import { AuditPage } from "../modules/audit/AuditPage";
+const DashboardPage = lazy(() =>
+  import("../modules/dashboard/DashboardPage").then((module) => ({
+    default: module.DashboardPage,
+  })),
+);
+const ClientsPage = lazy(() =>
+  import("../modules/clients/ClientsPage").then((module) => ({
+    default: module.ClientsPage,
+  })),
+);
+const ServicesPage = lazy(() =>
+  import("../modules/services/ServicesPage").then((module) => ({
+    default: module.ServicesPage,
+  })),
+);
+const RequestsPage = lazy(() =>
+  import("../modules/requests/RequestsPage").then((module) => ({
+    default: module.RequestsPage,
+  })),
+);
+const ContractsPage = lazy(() =>
+  import("../modules/contracts/ContractsPage").then((module) => ({
+    default: module.ContractsPage,
+  })),
+);
+const ProjectsPage = lazy(() =>
+  import("../modules/projects/ProjectsPage").then((module) => ({
+    default: module.ProjectsPage,
+  })),
+);
+const InvoicesPage = lazy(() =>
+  import("../modules/invoices/InvoicesPage").then((module) => ({
+    default: module.InvoicesPage,
+  })),
+);
+const PaymentsPage = lazy(() =>
+  import("../modules/payments/PaymentsPage").then((module) => ({
+    default: module.PaymentsPage,
+  })),
+);
+const IntegrationsPage = lazy(() =>
+  import("../modules/integrations/IntegrationsPage").then((module) => ({
+    default: module.IntegrationsPage,
+  })),
+);
+const MembersPage = lazy(() =>
+  import("../modules/members/MembersPage").then((module) => ({
+    default: module.MembersPage,
+  })),
+);
+const ArchivedPage = lazy(() =>
+  import("../modules/audit/ArchivedPage").then((module) => ({
+    default: module.ArchivedPage,
+  })),
+);
+const AuditPage = lazy(() =>
+  import("../modules/audit/AuditPage").then((module) => ({
+    default: module.AuditPage,
+  })),
+);
 import { Modal } from "../components/Modal";
 const nav = [
   ["/", "Resumo", LayoutDashboard],
@@ -145,48 +193,52 @@ export function App() {
           </span>
         </header>
         <main className="content">
-          {a.demo && (
-            <div className="demo-banner">
-              Modo demonstração · dados fictícios, sem conexão com Gmail ou
-              armazenamento de arquivos.
-            </div>
-          )}
-          {(error || s.error) && (
-            <div className="notice error" role="alert">
-              {error || s.error}
-            </div>
-          )}
-          {s.loading && !s.panel ? (
-            <div className="loading">Carregando painéis…</div>
-          ) : !s.panel ? (
-            <div className="empty">
-              <h1>Seu primeiro painel</h1>
-              <p>
-                Crie um painel para organizar seus clientes ou aceite um
-                convite.
-              </p>
-              <button className="primary" onClick={() => setNewPanel(true)}>
-                Criar painel
-              </button>
-              <MembersPage />
-            </div>
-          ) : (
-            <Routes key={s.panelId}>
-              <Route path="/" element={<DashboardPage />} />
-              <Route path="/clientes" element={<ClientsPage />} />
-              <Route path="/servicos" element={<ServicesPage />} />
-              <Route path="/pedidos" element={<RequestsPage />} />
-              <Route path="/contratos" element={<ContractsPage />} />
-              <Route path="/projetos" element={<ProjectsPage />} />
-              <Route path="/notas" element={<InvoicesPage />} />
-              <Route path="/receber" element={<PaymentsPage />} />
-              <Route path="/integracoes" element={<IntegrationsPage />} />
-              <Route path="/equipe" element={<MembersPage />} />
-              <Route path="/historico" element={<AuditPage />} />
-              <Route path="/arquivados" element={<ArchivedPage />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          )}
+          <Suspense
+            fallback={<div className="loading">Carregando módulo…</div>}
+          >
+            {a.demo && (
+              <div className="demo-banner">
+                Modo demonstração · dados fictícios, sem conexão com Gmail ou
+                armazenamento de arquivos.
+              </div>
+            )}
+            {(error || s.error) && (
+              <div className="notice error" role="alert">
+                {error || s.error}
+              </div>
+            )}
+            {s.loading && !s.panel ? (
+              <div className="loading">Carregando painéis…</div>
+            ) : !s.panel ? (
+              <div className="empty">
+                <h1>Seu primeiro painel</h1>
+                <p>
+                  Crie um painel para organizar seus clientes ou aceite um
+                  convite.
+                </p>
+                <button className="primary" onClick={() => setNewPanel(true)}>
+                  Criar painel
+                </button>
+                <MembersPage />
+              </div>
+            ) : (
+              <Routes key={s.panelId}>
+                <Route path="/" element={<DashboardPage />} />
+                <Route path="/clientes" element={<ClientsPage />} />
+                <Route path="/servicos" element={<ServicesPage />} />
+                <Route path="/pedidos" element={<RequestsPage />} />
+                <Route path="/contratos" element={<ContractsPage />} />
+                <Route path="/projetos" element={<ProjectsPage />} />
+                <Route path="/notas" element={<InvoicesPage />} />
+                <Route path="/receber" element={<PaymentsPage />} />
+                <Route path="/integracoes" element={<IntegrationsPage />} />
+                <Route path="/equipe" element={<MembersPage />} />
+                <Route path="/historico" element={<AuditPage />} />
+                <Route path="/arquivados" element={<ArchivedPage />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            )}
+          </Suspense>
         </main>
         <nav className="bottom-nav">
           {nav

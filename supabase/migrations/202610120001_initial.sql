@@ -333,10 +333,10 @@ grant select,insert,update,delete on public.email_rules to authenticated;
 grant select,insert,update,delete on public.captured_messages to authenticated;
 grant select,insert,update,delete on public.attachments to authenticated;
 grant select,insert,update,delete on public.audit_events to authenticated;
-revoke all on all functions in schema public from public,anon;
+revoke all on function public.panel_role(uuid),public.create_panel(text),public.invite_member(uuid,text,text),public.accept_invitation(uuid),public.change_member(uuid,uuid,text),public.archive_record(uuid,text,uuid),public.restore_record(uuid,text,uuid),public.record_payment(uuid,uuid,numeric,date,text,text,jsonb,uuid),public.reverse_payment(uuid,uuid,text),public.generate_installments(uuid),public.import_invoice(uuid,jsonb,uuid),public.confirm_capture(uuid,uuid,uuid,jsonb),public.attachment_allowed(uuid,text,uuid),public.storage_panel(text) from public,anon;
 grant execute on function public.panel_role(uuid),public.create_panel(text),public.invite_member(uuid,text,text),public.accept_invitation(uuid),public.change_member(uuid,uuid,text),public.archive_record(uuid,text,uuid),public.restore_record(uuid,text,uuid),public.record_payment(uuid,uuid,numeric,date,text,text,jsonb,uuid),public.reverse_payment(uuid,uuid,text),public.generate_installments(uuid),public.import_invoice(uuid,jsonb,uuid),public.confirm_capture(uuid,uuid,uuid,jsonb),public.attachment_allowed(uuid,text,uuid),public.storage_panel(text) to authenticated;
 grant usage on schema private to service_role;
-grant all on all tables in schema private to service_role;
+grant all on private.gmail_tokens,private.oauth_states to service_role;
 grant all on public.gmail_accounts,public.captured_messages to service_role;
 -- Token tables stay in a non-exposed schema. Edge functions access only through service-only RPCs.
 create function public.oauth_state_create(p_user uuid) returns uuid language plpgsql security definer set search_path='' as $$ declare v uuid;begin delete from private.oauth_states where expires_at<now();insert into private.oauth_states(user_id) values(p_user) returning state into v;return v;end $$;
@@ -346,4 +346,4 @@ create function public.gmail_token_get(p_connection uuid) returns text language 
 revoke all on function public.oauth_state_create(uuid),public.oauth_state_consume(uuid),public.gmail_token_put(uuid,text),public.gmail_token_get(uuid) from public,anon,authenticated;
 grant execute on function public.oauth_state_create(uuid),public.oauth_state_consume(uuid),public.gmail_token_put(uuid,text),public.gmail_token_get(uuid) to service_role;
 
-grant all on all tables in schema public to service_role;
+grant all on public.panels,public.memberships,public.invitations,public.clients,public.services,public.billing_requests,public.contracts,public.projects,public.invoices,public.receivables,public.payments,public.payment_allocations,public.email_rules,public.captured_messages,public.attachments,public.audit_events,public.gmail_accounts to service_role;

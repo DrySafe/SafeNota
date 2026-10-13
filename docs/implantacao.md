@@ -1,5 +1,7 @@
 # Implantação e integrações
 
+O projeto autorizado `fqqnzmhvlvwxlcfwseof` já recebeu as migrações e funções. Consulte [ambiente-supabase.md](ambiente-supabase.md) antes de repetir etapas. Os scripts em `scripts/` verificam a URL e a identidade remota antes de qualquer alteração.
+
 ## Aplicação web
 
 1. Criar um projeto Supabase. Habilitar confirmação de e-mail no Auth; definir Site URL e URLs de redirecionamento para o domínio da aplicação. Configurar SMTP para entrega confiável de confirmações.
@@ -45,7 +47,7 @@ select cron.schedule(
 );
 ```
 
-O horário acima é 08:00 UTC, 05:00 em São Paulo. A competência e o vencimento usam o fuso de cada painel. Na primeira versão, novos painéis usam America/Sao_Paulo. Verificar `cron.job_run_details` após uma execução. Ativação do job é uma etapa de implantação, não foi executada nesta máquina.
+O horário acima é 08:00 UTC, 05:00 em São Paulo. A competência e o vencimento usam o fuso de cada painel. Na primeira versão, novos painéis usam America/Sao_Paulo. Verificar `cron.job_run_details` após uma execução. Esse job já está ativo no projeto autorizado.
 
 ### Gmail
 
@@ -64,3 +66,17 @@ Monitorar resposta `errors`, expiração de autorização e duração das funç�
 - Recuperação de conta, retenção de documentos/logs, backups e resposta a solicitações de privacidade.
 
 Esses testes externos exigem sua implantação e credenciais. Os testes locais existentes não comprovam funcionamento dos serviços remotos.
+
+## API administrativa no ambiente Codex
+
+O token do ambiente pode ser uma referência substituída pelo proxy em requisições HTTPS. A CLI pode rejeitar seu formato antes de enviá-lo; isso não significa que a credencial deixou de funcionar. Os scripts Python usam a API Management diretamente, preservando proxy e verificação TLS:
+
+```sh
+python scripts/supabase_setup.py          # inspecionar, sem aplicar
+python scripts/supabase_setup.py --apply  # migrações pendentes, em uma transação
+python scripts/deploy_functions.py       # apenas gmail e gmail-callback
+```
+
+Requerem `SUPABASE_ACCESS_TOKEN` e a URL autorizada em `VITE_SUPABASE_URL`. Não aceitam outra referência de projeto. Migrações aplicadas têm checksums registrados; alterar uma versão aplicada interrompe a execução. Não recuperar o valor real de tokens do proxy para usar na CLI.
+
+`supabase/ops/validate-rls.sql` testa a autorização usando dados fictícios em uma transação desfeita. `enable-contract-job.sql` registra a rotina recorrente; ambos devem ser executados somente após confirmação do projeto pelo script.
