@@ -133,3 +133,84 @@ test("importação XML gera uma única cobrança", async ({ page }) => {
     page.locator(".entity-card").filter({ hasText: "NF 88" }),
   ).toContainText("90,00");
 });
+
+test("cria primeiro cliente no formulário e conserva rascunho do serviço", async ({
+  page,
+}) => {
+  await page.getByLabel("Selecionar painel").selectOption("demo-daniel");
+  await navigate(page, "/servicos");
+  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  let dialog = page.getByRole("dialog");
+  await dialog
+    .getByLabel("Descrição", { exact: false })
+    .fill("Atendimento com cliente novo");
+  await dialog.getByLabel("Número completo do chamado").fill("18285-1");
+  await dialog.getByLabel("Valor previsto").fill("80");
+  await expect(dialog.getByText("Nenhum cliente neste painel.")).toBeVisible();
+  await dialog
+    .getByRole("button", { name: "Novo cliente", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Novo cliente", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator("dialog[open]")).toHaveCount(1);
+  dialog = page.getByRole("dialog");
+  await dialog
+    .getByLabel("Nome / razão social", { exact: false })
+    .fill("Cliente criado no atendimento");
+  await dialog
+    .getByLabel("E-mail", { exact: true })
+    .fill("cliente@example.test");
+  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(
+    dialog.getByRole("heading", { name: "Adicionar registro", exact: true }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByLabel("Cliente", { exact: false }).locator("option:checked"),
+  ).toHaveText("Cliente criado no atendimento");
+  await expect(dialog.getByLabel("Descrição", { exact: false })).toHaveValue(
+    "Atendimento com cliente novo",
+  );
+  await expect(dialog.getByLabel("Número completo do chamado")).toHaveValue(
+    "18285-1",
+  );
+  await expect(dialog.getByLabel("Valor previsto")).toHaveValue("80");
+  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(page.locator(".entity-card")).toContainText(
+    "Cliente criado no atendimento",
+  );
+  await navigate(page, "/clientes");
+  await expect(page.locator(".entity-card")).toHaveCount(1);
+  await expect(page.locator(".entity-card")).toContainText(
+    "Cliente criado no atendimento",
+  );
+});
+
+test("cancelar novo cliente preserva serviço e seleção anterior", async ({
+  page,
+}) => {
+  await navigate(page, "/servicos");
+  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByLabel("Descrição", { exact: false })
+    .fill("Rascunho preservado");
+  await dialog.getByLabel("Cliente", { exact: false }).selectOption("client-1");
+  await dialog
+    .getByRole("button", { name: "Novo cliente", exact: true })
+    .click();
+  await dialog
+    .getByLabel("Nome / razão social", { exact: false })
+    .fill("Não salvar");
+  await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(dialog.getByLabel("Descrição", { exact: false })).toHaveValue(
+    "Rascunho preservado",
+  );
+  await expect(dialog.getByLabel("Cliente", { exact: false })).toHaveValue(
+    "client-1",
+  );
+  await dialog.getByRole("button", { name: "Fechar", exact: true }).click();
+  await navigate(page, "/clientes");
+  await expect(page.locator(".entity-card")).toHaveCount(1);
+  await expect(page.locator(".entity-card")).not.toContainText("Não salvar");
+});

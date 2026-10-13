@@ -930,3 +930,14 @@ pre {
   margin: 0;
   accent-color: var(--green);
 }
+
+.inline-client-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: -8px 0 17px;
+}
+.inline-client-action .secondary {
+  padding: 9px 12px;
+}

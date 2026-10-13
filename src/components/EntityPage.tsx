@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Plus, Search, Pencil, Archive, FileDown } from "lucide-react";
 import { useStore, message } from "../app/Store";
 import { Modal } from "./Modal";
+import { clientFields } from "../modules/clients/fields";
 import { dateLabel, money } from "../lib/finance";
 import { exportCsv } from "../lib/csv";
 import { supabase } from "../lib/supabase";
@@ -219,12 +220,16 @@ export function EntityForm({
   fields,
   row,
   onClose,
+  onSaved,
+  embedded = false,
 }: {
   table: Table;
   title: string;
   fields: Field[];
   row?: Row;
   onClose: () => void;
+  onSaved?: (id: string) => void;
+  embedded?: boolean;
 }) {
   const s = useStore();
   const [values, setValues] = useState<Record<string, unknown>>(
@@ -238,36 +243,53 @@ export function EntityForm({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  return (
-    <Modal title={title} onClose={onClose}>
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setBusy(true);
-          setError("");
-          try {
-            const payload = Object.fromEntries(
-              fields.map((f) => [
-                f.key,
-                values[f.key] === "" || values[f.key] === undefined
-                  ? null
-                  : f.type === "number"
-                    ? Number(values[f.key])
-                    : values[f.key],
-              ]),
-            );
-            await s.save(table, payload, row?.id);
-            onClose();
-          } catch (e) {
-            setError(message(e));
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <div className="form-grid">
-          {fields.map((f) => (
-            <label key={f.key} className={f.type === "textarea" ? "full" : ""}>
+  const [creatingClient, setCreatingClient] = useState(false);
+  if (creatingClient) {
+    // Switch content within the existing dialog; the parent draft stays in state.
+    return (
+      <Modal title="Novo cliente" onClose={() => setCreatingClient(false)}>
+        <EntityForm
+          table="clients"
+          title="Novo cliente"
+          fields={clientFields}
+          embedded
+          onClose={() => setCreatingClient(false)}
+          onSaved={(id) => setValues((v) => ({ ...v, client_id: id }))}
+        />
+      </Modal>
+    );
+  }
+  const form = (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        setBusy(true);
+        setError("");
+        try {
+          const payload = Object.fromEntries(
+            fields.map((f) => [
+              f.key,
+              values[f.key] === "" || values[f.key] === undefined
+                ? null
+                : f.type === "number"
+                  ? Number(values[f.key])
+                  : values[f.key],
+            ]),
+          );
+          const id = await s.save(table, payload, row?.id);
+          onSaved?.(id);
+          onClose();
+        } catch (e) {
+          setError(message(e));
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <div className="form-grid">
+        {fields.map((f) => (
+          <div key={f.key} className={f.type === "textarea" ? "full" : ""}>
+            <label>
               {f.label}
               {f.required ? " *" : ""}
               {f.relation || f.options || f.choices ? (
@@ -316,27 +338,51 @@ export function EntityForm({
                 />
               )}
             </label>
-          ))}
-        </div>
-        {error && (
-          <p className="error" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="form-footer">
-          <button
-            type="button"
-            className="secondary"
-            onClick={onClose}
-            disabled={busy}
-          >
-            Cancelar
-          </button>
-          <button className="primary" disabled={busy}>
-            {busy ? "Salvando…" : "Salvar"}
-          </button>
-        </div>
-      </form>
+            {f.relation === "clients" &&
+              (s.role === "admin" || s.role === "operator") && (
+                <div className="inline-client-action">
+                  {!s.current("clients").length && (
+                    <small>Nenhum cliente neste painel.</small>
+                  )}
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setCreatingClient(true)}
+                    disabled={busy}
+                  >
+                    <Plus size={16} />
+                    Novo cliente
+                  </button>
+                </div>
+              )}
+          </div>
+        ))}
+      </div>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="form-footer">
+        <button
+          type="button"
+          className="secondary"
+          onClick={onClose}
+          disabled={busy}
+        >
+          Cancelar
+        </button>
+        <button className="primary" disabled={busy}>
+          {busy ? "Salvando…" : "Salvar"}
+        </button>
+      </div>
+    </form>
+  );
+  return embedded ? (
+    form
+  ) : (
+    <Modal title={title} onClose={onClose}>
+      {form}
     </Modal>
   );
 }
