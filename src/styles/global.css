@@ -1009,7 +1009,13 @@ pre {
   margin: 8px 0;
   overflow-wrap: anywhere;
 }
-.receipt-reference a {
+.receipt-reference .reference-button {
+  background: transparent;
+  color: var(--green);
+  padding: 2px 0;
+  font-size: inherit;
+  font-weight: inherit;
+  border-radius: 0;
   text-decoration: underline;
 }
 .receipt-reference small {

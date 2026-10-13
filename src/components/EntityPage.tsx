@@ -7,6 +7,7 @@ import { ServicePicker } from "../modules/services/ServicePicker";
 import { serviceIdsFor } from "../modules/services/links";
 import { clientFields } from "../modules/clients/fields";
 import { dateLabel, money } from "../lib/finance";
+import { documentAttachments } from "../lib/documents";
 import { exportCsv } from "../lib/csv";
 import { supabase } from "../lib/supabase";
 import type { Field, Row, Table } from "../types";
@@ -221,55 +222,70 @@ export function EntityPage({
           title={String(selected.title || selected.name || "Detalhes")}
           onClose={closeDetails}
         >
-          <dl className="details">
-            {fields
-              .filter((f) => !f.showIf)
-              .map((f) => (
-                <div key={f.key}>
-                  <dt>{f.label}</dt>
-                  <dd>
-                    {f.type === "service-list"
-                      ? s
-                          .current("services")
-                          .filter((service) =>
-                            serviceIdsFor(
-                              selected.id,
-                              table === "invoices"
-                                ? "invoice_id"
-                                : "request_id",
-                              s.current(
-                                table === "invoices"
-                                  ? "invoice_services"
-                                  : "request_services",
-                              ),
-                            ).includes(service.id),
-                          )
-                          .map((service) =>
-                            String(service.ticket_number || service.title),
-                          )
-                          .join(", ") || "Nenhum serviço vinculado"
-                      : f.relation
-                        ? String(
-                            s
-                              .current(f.relation)
-                              .find((r) => r.id === selected[f.key])?.name ||
-                              s
-                                .current(f.relation)
-                                .find((r) => r.id === selected[f.key])?.title ||
-                              "—",
-                          )
-                        : f.type === "date"
-                          ? dateLabel(selected[f.key])
-                          : f.type === "number" && f.key.includes("amount")
-                            ? money(selected[f.key])
-                            : String(selected[f.key] || "—")}
-                  </dd>
-                </div>
-              ))}
-          </dl>
-          <Attachments entity={table} id={selected.id} />
+          <EntityDetails table={table} row={selected} fields={fields} />
         </Modal>
       )}
+    </>
+  );
+}
+export function EntityDetails({
+  table,
+  row,
+  fields,
+}: {
+  table: Table;
+  row: Row;
+  fields: Field[];
+}) {
+  const s = useStore();
+  return (
+    <>
+      {" "}
+      <dl className="details">
+        {fields
+          .filter((f) => !f.showIf)
+          .map((f) => (
+            <div key={f.key}>
+              <dt>{f.label}</dt>
+              <dd>
+                {f.type === "service-list"
+                  ? s
+                      .current("services")
+                      .filter((service) =>
+                        serviceIdsFor(
+                          row.id,
+                          table === "invoices" ? "invoice_id" : "request_id",
+                          s.current(
+                            table === "invoices"
+                              ? "invoice_services"
+                              : "request_services",
+                          ),
+                        ).includes(service.id),
+                      )
+                      .map((service) =>
+                        String(service.ticket_number || service.title),
+                      )
+                      .join(", ") || "Nenhum serviço vinculado"
+                  : f.relation
+                    ? String(
+                        s.current(f.relation).find((r) => r.id === row[f.key])
+                          ?.name ||
+                          s.current(f.relation).find((r) => r.id === row[f.key])
+                            ?.title ||
+                          "—",
+                      )
+                    : f.type === "date"
+                      ? dateLabel(row[f.key])
+                      : f.type === "number" && f.key.includes("amount")
+                        ? money(row[f.key])
+                        : f.choices?.find(
+                            (choice) => choice.value === row[f.key],
+                          )?.label || String(row[f.key] || "—")}
+              </dd>
+            </div>
+          ))}
+      </dl>
+      <Attachments entity={table} id={row.id} />
     </>
   );
 }
@@ -536,9 +552,7 @@ export function Attachments({ entity, id }: { entity: string; id: string }) {
   const s = useStore();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const attachments = s
-    .current("attachments")
-    .filter((a) => a.entity === entity && a.entity_id === id);
+  const attachments = documentAttachments(entity, id, s.panelId, s.data);
   return (
     <section className="attachments">
       <h3>Documentos e comprovantes</h3>
@@ -560,6 +574,15 @@ export function Attachments({ entity, id }: { entity: string; id: string }) {
         >
           <FileDown size={16} />
           {String(a.name)}
+          {a.entity !== entity || a.entity_id !== id ? (
+            <small>
+              {" "}
+              ·{" "}
+              {a.entity === "billing_requests"
+                ? "Anexo da requisição"
+                : `Anexo da NF ${String(s.current("invoices").find((note) => note.id === a.entity_id)?.number || "")}`}
+            </small>
+          ) : null}
         </button>
       ))}
       {s.role !== "viewer" && (

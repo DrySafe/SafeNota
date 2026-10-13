@@ -55,7 +55,7 @@ supabase/
 - Cadastros de clientes, serviços, requisições de nota, contratos e projetos. Etapas de projeto podem ser marcadas como concluídas.
 - XML nacional v1.01, múltiplos arquivos e ZIP com limites. Extração de pedido/chamados na descrição, detecção de duplicatas e confirmação do cliente.
 - Em Requisições de nota, selecionar “Gerada” solicita o número da nota emitida, emissão e vencimento e cria nota/cobrança atomicamente. Edições posteriores reutilizam a nota existente. O menu Notas fiscais foi removido; documentos e importação XML continuam acessíveis pelas requisições e pelos links de nota.
-- Recebimentos mostram requisição, nota e chamados nas pendências, seleção de pagamento e histórico. Confirmar um pagamento exige distribuição para ao menos uma cobrança; o dashboard mostra o saldo pendente e o valor recebido no mês.
+- Recebimentos mostram requisição, nota e chamados nas pendências, seleção de pagamento e histórico. As referências abrem detalhes em popup sem sair da página ou trocar a aba. Documentos enviados à requisição também aparecem na nota vinculada e vice-versa, mantendo o vínculo original de cada upload. Confirmar um pagamento exige distribuição para ao menos uma cobrança; o dashboard mostra o saldo pendente e o valor recebido no mês.
 - Cadastro de nota gera cobrança; importação pode vincular competência existente sem duplicar o valor a receber. Valor fiscal e valor esperado são separados.
 - Depósito distribuído entre várias cobranças do mesmo cliente; pagamentos parciais, saldo não distribuído, idempotência e reversão restrita a administradores.
 - Vencimento padrão de nota em 20 dias corridos; contratos com competência única e dia de vencimento ajustado ao último dia do mês.

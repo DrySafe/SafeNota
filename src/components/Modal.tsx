@@ -19,6 +19,7 @@ export function Modal({
       className="modal"
       onCancel={(e) => {
         e.preventDefault();
+        e.stopPropagation();
         onClose();
       }}
     >

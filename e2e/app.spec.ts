@@ -329,13 +329,11 @@ test("requisição gerada vira pendência com chamados e pagamento atualiza dash
   await page.getByRole("button", { name: "Importar XML em lote" }).click();
   const xml =
     '<NFSe xmlns="http://www.sped.fazenda.gov.br/nfse"><infNFSe Id="NFSworkflow-xml"><nNFSe>900</nNFSe><emit><CNPJ>00000000000001</CNPJ></emit><valores><vLiq>150.00</vLiq></valores><DPS><infDPS><dhEmi>2026-10-13T12:00:00-03:00</dhEmi><toma><CNPJ>00000000000002</CNPJ><xNome>Cliente exemplo</xNome></toma><xDescServ>Pedido: 4500088888 Chamado: 24543-1</xDescServ><vServ>150.00</vServ></infDPS></DPS></infNFSe></NFSe>';
-  await dialog
-    .locator("input[type=file]")
-    .setInputFiles({
-      name: "nota-900.xml",
-      mimeType: "application/xml",
-      buffer: Buffer.from(xml),
-    });
+  await dialog.locator("input[type=file]").setInputFiles({
+    name: "nota-900.xml",
+    mimeType: "application/xml",
+    buffer: Buffer.from(xml),
+  });
   await dialog
     .getByRole("combobox", { name: "Cliente", exact: true })
     .selectOption("client-1");
@@ -354,7 +352,7 @@ test("requisição gerada vira pendência com chamados e pagamento atualiza dash
   await expect(pending).toContainText("24543-1");
   await expect(pending).toContainText("02/11/2026");
   await pending
-    .getByRole("link", { name: "Requisição 4500088888", exact: true })
+    .getByRole("button", { name: "Requisição 4500088888", exact: true })
     .click();
   await expect(page.getByRole("dialog")).toContainText(
     "Requisição para receber",
@@ -389,4 +387,75 @@ test("requisição gerada vira pendência com chamados e pagamento atualiza dash
   ).toContainText("150,00");
   await navigate(page, "/requisicoes");
   await expect(req).toContainText("Pago");
+});
+
+test("referências abrem somente popup e mantêm a aba Pagamentos ao fechar", async ({
+  page,
+}) => {
+  await navigate(page, "/receber");
+  await page
+    .getByRole("button", { name: "Registrar pagamento", exact: true })
+    .click();
+  let dialog = page.getByRole("dialog");
+  await dialog
+    .getByRole("combobox", { name: "Cliente", exact: true })
+    .selectOption("client-1");
+  await dialog.getByLabel("Valor recebido").fill("80");
+  await dialog.getByLabel("Valor para NF 12").fill("80");
+  await dialog.getByRole("button", { name: "Confirmar recebimento" }).click();
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  const url = page.url();
+  const payment = page
+    .locator(".entity-card")
+    .filter({ hasText: "Confirmado" });
+  for (let repeat = 0; repeat < 2; repeat++) {
+    await payment
+      .getByRole("button", { name: "Requisição 4500010497", exact: true })
+      .click();
+    dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText("Chamados informados");
+    await expect(dialog).toContainText("23628-1");
+    expect(page.url()).toBe(url);
+    await dialog.getByRole("button", { name: "Fechar", exact: true }).click();
+    await expect(page.locator("dialog[open]")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Pagamentos", exact: true }),
+    ).toHaveClass("active");
+    await payment.getByRole("button", { name: "NF 12", exact: true }).click();
+    dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText("Número da nota");
+    await expect(dialog).toContainText("23628-1");
+    await expect(
+      dialog.getByText("Documentos e comprovantes", { exact: true }),
+    ).toBeVisible();
+    expect(page.url()).toBe(url);
+    await page.keyboard.press("Escape");
+    await expect(page.locator("dialog[open]")).toHaveCount(0);
+    await expect(payment).toBeVisible();
+  }
+  await payment.locator(".entity-main").click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Pagamento e comprovantes",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "NF 12", exact: true })
+    .click();
+  await expect(page.locator("dialog[open]")).toHaveCount(2);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("dialog[open]")).toHaveCount(1);
+  await expect(
+    page.getByRole("heading", {
+      name: "Pagamento e comprovantes",
+      exact: true,
+    }),
+  ).toBeVisible();
+  expect(page.url()).toBe(url);
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Pagamentos", exact: true }),
+  ).toHaveClass("active");
 });
