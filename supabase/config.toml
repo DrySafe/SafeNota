@@ -1,0 +1,6 @@
+project_id = "safenota"
+[functions.gmail]
+verify_jwt = false
+import_map = "./functions/import_map.json"
+[functions.gmail-callback]
+verify_jwt = false

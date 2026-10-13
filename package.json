@@ -1,0 +1,38 @@
+{
+  "name": "safenota",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "vitest run",
+    "typecheck": "tsc -b",
+    "test:e2e": "playwright test",
+    "test:edge": "deno check --import-map supabase/functions/import_map.json supabase/functions/gmail/index.ts supabase/functions/gmail-callback/index.ts",
+    "format": "prettier --write src tests e2e *.ts *.json index.html docs README.md"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.99.0",
+    "fflate": "^0.8.2",
+    "lucide-react": "^0.468.0",
+    "re2js": "^2.8.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.0.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.9",
+    "@playwright/test": "^1.64.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "deno": "^2.9.6",
+    "jsdom": "^26.0.0",
+    "prettier": "^3.9.10",
+    "typescript": "~5.7.2",
+    "vite": "^6.1.0",
+    "vitest": "^3.0.0"
+  }
+}
