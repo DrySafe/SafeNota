@@ -291,7 +291,7 @@ small {
 }
 .stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 26px;
 }
@@ -1042,4 +1042,32 @@ pre {
     border-radius: 0;
     padding: 0;
   }
+}
+
+.period-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.period-toolbar label {
+  margin: 0;
+  min-width: 200px;
+}
+.period-toolbar select {
+  margin-bottom: 0;
+}
+.period-toolbar .tabs {
+  flex-wrap: wrap;
+}
+.period-toolbar p {
+  flex: 1;
+  min-width: 200px;
+  margin: 0;
+}
+.month-heading {
+  margin: 14px 0 0;
+  font-size: 16px;
+  text-transform: capitalize;
 }

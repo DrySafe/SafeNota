@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { Plus, Search, Pencil, Archive, FileDown } from "lucide-react";
 import { useStore, message } from "../app/Store";
 import { Modal } from "./Modal";
@@ -18,6 +18,9 @@ export function EntityPage({
   fields,
   extra,
   rowExtra,
+  rowFilter,
+  groupBy,
+  groupLabel,
 }: {
   table: Table;
   title: string;
@@ -25,6 +28,9 @@ export function EntityPage({
   fields: Field[];
   extra?: ReactNode;
   rowExtra?: (row: Row) => ReactNode;
+  rowFilter?: (row: Row) => boolean;
+  groupBy?: (row: Row) => string;
+  groupLabel?: (group: string) => string;
 }) {
   const s = useStore();
   const [params, setParams] = useSearchParams();
@@ -61,6 +67,8 @@ export function EntityPage({
   }
   const rows = s
     .current(table)
+    .filter((r) => !rowFilter || rowFilter(r))
+    .sort((a, b) => (groupBy ? groupBy(b).localeCompare(groupBy(a)) : 0))
     .filter((r) =>
       Object.values(r).join(" ").toLowerCase().includes(search.toLowerCase()),
     );
@@ -126,76 +134,84 @@ export function EntityPage({
         </div>
       )}
       <div className="entity-list">
-        {rows.map((r) => (
-          <article className="entity-card" key={r.id}>
-            <button className="entity-main" onClick={() => setSelected(r)}>
-              <span className="entity-icon">
-                {String(r.title || r.name || "#")
-                  .slice(0, 1)
-                  .toUpperCase()}
-              </span>
-              <div>
-                <h3>{String(r.title || r.name || r.number || "Registro")}</h3>
-                <p>
-                  {[
-                    r.order_number,
-                    r.ticket_number,
-                    r.reference,
-                    s.current("clients").find((c) => c.id === r.client_id)
-                      ?.name,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ") || "Detalhes do registro"}
-                </p>
-              </div>
-            </button>
-            {rowExtra && (
-              <div className="entity-associations">{rowExtra(r)}</div>
-            )}
-            <div className="entity-end">
-              {r.amount !== undefined && <strong>{money(r.amount)}</strong>}
-              {r.status !== undefined && (
-                <span className="badge">
-                  {fields
-                    .find((f) => f.key === "status")
-                    ?.choices?.find((c) => c.value === r.status)?.label ||
-                    String(r.status)}
+        {rows.map((r, index) => (
+          <Fragment key={r.id}>
+            {groupBy &&
+              (index === 0 || groupBy(rows[index - 1]) !== groupBy(r)) && (
+                <h2 className="month-heading">
+                  {groupLabel ? groupLabel(groupBy(r)) : groupBy(r)}
+                </h2>
+              )}
+            <article className="entity-card" key={r.id}>
+              <button className="entity-main" onClick={() => setSelected(r)}>
+                <span className="entity-icon">
+                  {String(r.title || r.name || "#")
+                    .slice(0, 1)
+                    .toUpperCase()}
                 </span>
+                <div>
+                  <h3>{String(r.title || r.name || r.number || "Registro")}</h3>
+                  <p>
+                    {[
+                      r.order_number,
+                      r.ticket_number,
+                      r.reference,
+                      s.current("clients").find((c) => c.id === r.client_id)
+                        ?.name,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "Detalhes do registro"}
+                  </p>
+                </div>
+              </button>
+              {rowExtra && (
+                <div className="entity-associations">{rowExtra(r)}</div>
               )}
-              {(table === "email_rules"
-                ? s.role === "admin"
-                : s.role !== "viewer") && (
-                <button
-                  aria-label="Editar"
-                  className="icon-button"
-                  onClick={() => setEditing(r)}
-                >
-                  <Pencil size={16} />
-                </button>
-              )}
-              {s.role === "admin" && (
-                <button
-                  aria-label="Arquivar"
-                  className="icon-button"
-                  onClick={async () => {
-                    if (
-                      !confirm(
-                        "Arquivar este registro? O histórico será preservado.",
+              <div className="entity-end">
+                {r.amount !== undefined && <strong>{money(r.amount)}</strong>}
+                {r.status !== undefined && (
+                  <span className="badge">
+                    {fields
+                      .find((f) => f.key === "status")
+                      ?.choices?.find((c) => c.value === r.status)?.label ||
+                      String(r.status)}
+                  </span>
+                )}
+                {(table === "email_rules"
+                  ? s.role === "admin"
+                  : s.role !== "viewer") && (
+                  <button
+                    aria-label="Editar"
+                    className="icon-button"
+                    onClick={() => setEditing(r)}
+                  >
+                    <Pencil size={16} />
+                  </button>
+                )}
+                {s.role === "admin" && (
+                  <button
+                    aria-label="Arquivar"
+                    className="icon-button"
+                    onClick={async () => {
+                      if (
+                        !confirm(
+                          "Arquivar este registro? O histórico será preservado.",
+                        )
                       )
-                    )
-                      return;
-                    try {
-                      await s.remove(table, r.id);
-                    } catch (e) {
-                      setError(message(e));
-                    }
-                  }}
-                >
-                  <Archive size={16} />
-                </button>
-              )}
-            </div>
-          </article>
+                        return;
+                      try {
+                        await s.remove(table, r.id);
+                      } catch (e) {
+                        setError(message(e));
+                      }
+                    }}
+                  >
+                    <Archive size={16} />
+                  </button>
+                )}
+              </div>
+            </article>
+          </Fragment>
         ))}
       </div>
       {!rows.length && (

@@ -87,3 +87,5 @@ Para E2E, instale Chromium pelo Playwright (`npx playwright install chromium`) o
 ## Fora desta versão
 
 Consulta/emissão via API do Emissor Nacional, Open Finance, cobrança de assinatura, envio automático de e-mails, validação criptográfica da assinatura XML, recuperação de senha na interface e operação offline. Integrações externas não são simuladas como conexões bem-sucedidas. Antes de produção, validar o projeto remoto, configurar entrega de e-mails Auth e concluir as políticas de retenção, backups e privacidade.
+
+Serviços podem ser filtrados por nota gerada e mês da data do serviço, com agrupamento mensal e uma seção para serviços sem data. Notas canceladas ou arquivadas não contam como geradas. No Resumo, o filtro mensal se aplica aos recebimentos (data do pagamento) e ao total de vendas (soma das cobranças ativas, pela emissão da nota, competência do contrato ou cadastro da cobrança avulsa). A receber e Vencido continuam abrangendo todos os meses.

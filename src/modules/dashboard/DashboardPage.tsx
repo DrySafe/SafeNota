@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { monthKey, monthLabel, saleMonth } from "../../lib/periods";
 import {
   ArrowUpRight,
   Wallet,
@@ -19,6 +21,8 @@ import {
 } from "../../lib/finance";
 export function DashboardPage() {
   const s = useStore();
+  const [month, setMonth] = useState("all");
+  useEffect(() => setMonth("all"), [s.panelId]);
   const rs = s.current("receivables").filter((r) => r.status !== "cancelled");
   const ps = s.current("payments").filter((p) => p.status !== "reversed");
   const as = s.current("payment_allocations");
@@ -31,13 +35,32 @@ export function DashboardPage() {
   const overdue = pending.filter(
     (r) => paymentState(r, r.balance) === "Vencido",
   );
-  const received = ps.reduce((n, p) => n + cents(p.amount), 0) / 100;
+  const selectedPayments = ps.filter(
+    (p) => month === "all" || monthKey(p.paid_date) === month,
+  );
+  const selectedSales = rs.filter(
+    (r) => month === "all" || saleMonth(r, s.data.invoices) === month,
+  );
+  const sales = selectedSales.reduce((n, r) => n + cents(r.amount), 0) / 100;
+  const months = [
+    ...new Set(
+      [
+        today().slice(0, 7),
+        ...ps.map((p) => monthKey(p.paid_date)),
+        ...rs.map((r) => saleMonth(r, s.data.invoices)),
+      ].filter(Boolean),
+    ),
+  ]
+    .sort()
+    .reverse();
+  const received =
+    selectedPayments.reduce((n, p) => n + cents(p.amount), 0) / 100;
   const receivedThisMonth =
     ps
       .filter((p) => String(p.paid_date).startsWith(today().slice(0, 7)))
       .reduce((n, p) => n + cents(p.amount), 0) / 100;
   const undistributed =
-    ps.reduce(
+    selectedPayments.reduce(
       (n, p) =>
         n +
         cents(p.amount) -
@@ -58,6 +81,23 @@ export function DashboardPage() {
           Registrar pagamento <ArrowUpRight size={18} />
         </Link>
       </header>
+      <div className="period-toolbar">
+        <label>
+          Mês do resumo
+          <select value={month} onChange={(e) => setMonth(e.target.value)}>
+            <option value="all">Todos os meses</option>
+            {months.map((key) => (
+              <option key={key} value={key}>
+                {monthLabel(key)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="muted">
+          Recebido e vendas seguem o período selecionado. A receber e vencido
+          incluem todos os meses.
+        </p>
+      </div>
       <section className="stats">
         <Link to="/receber" className="stat">
           <Wallet />
@@ -65,7 +105,7 @@ export function DashboardPage() {
           <strong>
             {money(pending.reduce((n, r) => n + cents(r.balance), 0) / 100)}
           </strong>
-          <small>{pending.length} cobranças pendentes</small>
+          <small>{pending.length} cobranças pendentes · Todos os meses</small>
         </Link>
         <Link to="/receber?filter=overdue" className="stat danger">
           <Clock3 />
@@ -73,17 +113,31 @@ export function DashboardPage() {
           <strong>
             {money(overdue.reduce((n, r) => n + cents(r.balance), 0) / 100)}
           </strong>
-          <small>{overdue.length} precisam de atenção</small>
+          <small>{overdue.length} precisam de atenção · Todos os meses</small>
         </Link>
-        <Link to="/receber?tab=paid" className="stat">
+        <Link
+          to={`/receber?tab=paid${month === "all" ? "" : `&mes=${month}`}`}
+          className="stat"
+        >
           <CheckCircle2 />
           <span>Recebido</span>
           <strong>{money(received)}</strong>
           <small>
-            {money(receivedThisMonth)} neste mês · {money(undistributed)} a
-            distribuir
+            {month === "all"
+              ? `${money(receivedThisMonth)} neste mês`
+              : monthLabel(month)}{" "}
+            · {money(undistributed)} a distribuir
           </small>
         </Link>
+        <article className="stat">
+          <Wallet />
+          <span>Total de vendas</span>
+          <strong>{money(sales)}</strong>
+          <small>
+            {month === "all" ? "Todos os meses" : monthLabel(month)} ·{" "}
+            {selectedSales.length} cobranças
+          </small>
+        </article>
         <Link to="/requisicoes" className="stat">
           <FileText />
           <span>Requisições a gerar</span>

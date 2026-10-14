@@ -1,3 +1,4 @@
+import { monthKey, monthLabel } from "../../lib/periods";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Plus, Search } from "lucide-react";
@@ -23,6 +24,7 @@ export function PaymentsPage() {
   );
   const requestFilter = params.get("requisicao");
   const requestedTab = params.get("tab");
+  const paymentMonth = monthKey(params.get("mes"));
   useEffect(() => {
     setTab(requestedTab === "paid" ? "paid" : "pending");
   }, [requestedTab, s.panelId]);
@@ -65,6 +67,26 @@ export function PaymentsPage() {
         .toLowerCase()
         .includes(search.toLowerCase()),
     );
+  const visiblePayments = s
+    .current("payments")
+    .filter(
+      (p) =>
+        !requestFilter ||
+        s
+          .current("payment_allocations")
+          .some(
+            (a) =>
+              a.payment_id === p.id &&
+              s
+                .current("receivables")
+                .some(
+                  (r) =>
+                    r.id === a.receivable_id &&
+                    receiptOrigin(r, s.data).request?.id === requestFilter,
+                ),
+          ),
+    )
+    .filter((p) => !paymentMonth || monthKey(p.paid_date) === paymentMonth);
   return (
     <>
       <header className="page-header">
@@ -101,6 +123,12 @@ export function PaymentsPage() {
           </button>
         )}
       </div>
+      {paymentMonth && tab === "paid" && (
+        <div className="notice">
+          Pagamentos de {monthLabel(paymentMonth)} ·{" "}
+          <Link to="/receber?tab=paid">Ver todos os meses</Link>
+        </div>
+      )}
       {requestFilter && (
         <div className="notice">
           Recebimentos da requisição{" "}
@@ -163,85 +191,65 @@ export function PaymentsPage() {
         </>
       ) : (
         <div className="entity-list">
-          {s
-            .current("payments")
-            .filter(
-              (p) =>
-                !requestFilter ||
-                s
+          {visiblePayments.map((p) => (
+            <article className="entity-card" key={p.id}>
+              <button className="entity-main" onClick={() => setDetail(p)}>
+                <div>
+                  <h3>
+                    {String(
+                      s.current("clients").find((c) => c.id === p.client_id)
+                        ?.name || "Cliente",
+                    )}
+                  </h3>
+                  <p>
+                    {dateLabel(p.paid_date)} · {String(p.method)} ·{" "}
+                    {p.status === "reversed" ? "Revertido" : "Confirmado"}
+                  </p>
+                </div>
+              </button>
+              <div className="payment-origins">
+                {s
                   .current("payment_allocations")
-                  .some(
-                    (a) =>
-                      a.payment_id === p.id &&
-                      s
-                        .current("receivables")
-                        .some(
-                          (r) =>
-                            r.id === a.receivable_id &&
-                            receiptOrigin(r, s.data).request?.id ===
-                              requestFilter,
-                        ),
-                  ),
-            )
-            .map((p) => (
-              <article className="entity-card" key={p.id}>
-                <button className="entity-main" onClick={() => setDetail(p)}>
-                  <div>
-                    <h3>
-                      {String(
-                        s.current("clients").find((c) => c.id === p.client_id)
-                          ?.name || "Cliente",
-                      )}
-                    </h3>
-                    <p>
-                      {dateLabel(p.paid_date)} · {String(p.method)} ·{" "}
-                      {p.status === "reversed" ? "Revertido" : "Confirmado"}
-                    </p>
-                  </div>
-                </button>
-                <div className="payment-origins">
-                  {s
-                    .current("payment_allocations")
-                    .filter((a) => a.payment_id === p.id)
-                    .map((a) => {
-                      const r = s.data.receivables.find(
-                        (r) =>
-                          r.id === a.receivable_id && r.panel_id === s.panelId,
-                      );
-                      return (
-                        r && (
-                          <div key={a.id}>
-                            <ReceiptReference receivable={r} />
-                            <small>
-                              Recebido nesta cobrança: {money(a.amount)}
-                            </small>
-                          </div>
-                        )
-                      );
-                    })}
-                </div>
-                <div className="entity-end">
-                  <strong>{money(p.amount)}</strong>
-                  {s.role === "admin" && p.status !== "reversed" && (
-                    <button
-                      className="link"
-                      onClick={async () => {
-                        const reason = prompt("Motivo da reversão:");
-                        if (!reason) return;
-                        try {
-                          await s.reversePayment(p.id, reason);
-                        } catch (e) {
-                          setError(message(e));
-                        }
-                      }}
-                    >
-                      Reverter
-                    </button>
-                  )}
-                </div>
-              </article>
-            ))}
-          {!s.current("payments").length && (
+                  .filter((a) => a.payment_id === p.id)
+                  .map((a) => {
+                    const r = s.data.receivables.find(
+                      (r) =>
+                        r.id === a.receivable_id && r.panel_id === s.panelId,
+                    );
+                    return (
+                      r && (
+                        <div key={a.id}>
+                          <ReceiptReference receivable={r} />
+                          <small>
+                            Recebido nesta cobrança: {money(a.amount)}
+                          </small>
+                        </div>
+                      )
+                    );
+                  })}
+              </div>
+              <div className="entity-end">
+                <strong>{money(p.amount)}</strong>
+                {s.role === "admin" && p.status !== "reversed" && (
+                  <button
+                    className="link"
+                    onClick={async () => {
+                      const reason = prompt("Motivo da reversão:");
+                      if (!reason) return;
+                      try {
+                        await s.reversePayment(p.id, reason);
+                      } catch (e) {
+                        setError(message(e));
+                      }
+                    }}
+                  >
+                    Reverter
+                  </button>
+                )}
+              </div>
+            </article>
+          ))}
+          {!visiblePayments.length && (
             <div className="empty">Nenhum pagamento registrado.</div>
           )}
         </div>

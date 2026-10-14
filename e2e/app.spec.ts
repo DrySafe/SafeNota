@@ -520,3 +520,99 @@ test("menu pequeno fecha ao tocar fora, pressionar Escape ou escolher uma págin
   ).toBeVisible();
   await expect(open).toHaveAttribute("aria-expanded", "false");
 });
+
+test("serviços separam notas geradas e agrupam atendimentos por mês", async ({
+  page,
+}) => {
+  await navigate(page, "/servicos");
+  for (const [ticket, date] of [
+    ["23628-1", "2026-07-28"],
+    ["24543-1", "2026-09-05"],
+  ]) {
+    await page
+      .locator(".entity-card")
+      .filter({ hasText: ticket })
+      .getByRole("button", { name: "Editar", exact: true })
+      .click();
+    await page.getByRole("dialog").getByLabel("Data do serviço").fill(date);
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Salvar", exact: true })
+      .click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  }
+  await expect(page.locator(".month-heading")).toHaveText([
+    "setembro de 2026",
+    "julho de 2026",
+  ]);
+  await page.getByLabel("Mês dos serviços").selectOption("2026-07");
+  await page.getByRole("button", { name: /^Com nota gerada/ }).click();
+  await expect(page.locator(".entity-card")).toHaveCount(1);
+  await expect(page.locator(".entity-card")).toContainText("23628-1");
+  await page.getByRole("button", { name: /^Sem nota gerada/ }).click();
+  await expect(page.locator(".entity-card")).toHaveCount(0);
+  await page.getByLabel("Mês dos serviços").selectOption("2026-09");
+  await expect(page.locator(".entity-card")).toHaveCount(1);
+  await expect(page.locator(".entity-card")).toContainText("24543-1");
+  await navigate(page, "/notas");
+  page.on("dialog", (dialog) => dialog.accept("Cancelada no emissor"));
+  await page
+    .getByRole("button", { name: "Registrar cancelamento", exact: true })
+    .click();
+  await navigate(page, "/servicos");
+  await page.getByRole("button", { name: /^Com nota gerada/ }).click();
+  await expect(page.locator(".entity-card")).toHaveCount(0);
+  await page.getByRole("button", { name: /^Sem nota gerada/ }).click();
+  await expect(page.locator(".entity-card")).toHaveCount(2);
+});
+
+test("filtro mensal do resumo altera recebido/vendas e mantém todas as pendências", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-10-14T15:00:00Z"));
+  await navigate(page, "/receber");
+  for (const [amount, date] of [
+    ["20", "2026-07-28"],
+    ["30", "2026-10-14"],
+  ]) {
+    await page
+      .getByRole("button", { name: "Registrar pagamento", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog");
+    await dialog
+      .getByRole("combobox", { name: "Cliente", exact: true })
+      .selectOption("client-1");
+    await dialog.getByLabel("Valor recebido").fill(amount);
+    await dialog.getByLabel("Data", { exact: true }).fill(date);
+    await dialog.getByLabel("Valor para NF 12").fill(amount);
+    await dialog.getByRole("button", { name: "Confirmar recebimento" }).click();
+    await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  }
+  await navigate(page, "/");
+  const card = (label: string) =>
+    page
+      .locator(".stat")
+      .filter({ has: page.getByText(label, { exact: true }) });
+  for (const [month, received, sales] of [
+    ["all", "50,00", "80,00"],
+    ["2026-07", "20,00", "0,00"],
+    ["2026-10", "30,00", "0,00"],
+    ["2026-09", "0,00", "80,00"],
+  ]) {
+    await page.getByLabel("Mês do resumo").selectOption(month);
+    await expect(card("Recebido").locator("strong")).toContainText(received);
+    await expect(card("Total de vendas").locator("strong")).toContainText(
+      sales,
+    );
+    await expect(card("A receber").locator("strong")).toContainText("30,00");
+    await expect(card("Vencido").locator("strong")).toContainText("30,00");
+  }
+  await page.getByLabel("Mês do resumo").selectOption("2026-07");
+  await card("Recebido").click();
+  await expect(
+    page.getByRole("button", { name: "Pagamentos", exact: true }),
+  ).toHaveClass("active");
+  await expect(page.locator(".entity-card")).toHaveCount(1);
+  await expect(page.locator(".entity-card")).toContainText("28/07/2026");
+  await expect(page.locator(".entity-card")).toContainText("20,00");
+});
