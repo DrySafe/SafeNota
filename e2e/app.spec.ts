@@ -616,3 +616,30 @@ test("filtro mensal do resumo altera recebido/vendas e mantém todas as pendênc
   await expect(page.locator(".entity-card")).toContainText("28/07/2026");
   await expect(page.locator(".entity-card")).toContainText("20,00");
 });
+
+test("card de serviços sem nota conta atendimentos e abre a lista correspondente", async ({
+  page,
+}) => {
+  const card = page
+    .locator(".stat")
+    .filter({ has: page.getByText("Serviços sem nota", { exact: true }) });
+  await expect(card.locator("strong")).toHaveText("1");
+  await card.click();
+  await expect(
+    page.getByRole("button", { name: /^Sem nota gerada/ }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".entity-card")).toHaveCount(1);
+  await expect(page.locator(".entity-card")).toContainText("24543-1");
+  await navigate(page, "/notas");
+  page.on("dialog", (dialog) => dialog.accept("Cancelamento de teste"));
+  await page
+    .getByRole("button", { name: "Registrar cancelamento", exact: true })
+    .click();
+  await navigate(page, "/");
+  await expect(card.locator("strong")).toHaveText("2");
+  await card.click();
+  await expect(page.locator(".entity-card")).toHaveCount(2);
+  await navigate(page, "/");
+  await page.getByLabel("Selecionar painel").selectOption("demo-safe");
+  await expect(card.locator("strong")).toHaveText("0");
+});

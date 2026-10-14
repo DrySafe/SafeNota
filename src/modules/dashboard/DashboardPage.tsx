@@ -1,3 +1,4 @@
+import { notesForService } from "../services/links";
 import { useEffect, useState } from "react";
 import { monthKey, monthLabel, saleMonth } from "../../lib/periods";
 import {
@@ -138,17 +139,24 @@ export function DashboardPage() {
             {selectedSales.length} cobranças
           </small>
         </article>
-        <Link to="/requisicoes" className="stat">
+        <Link to="/servicos?situacao=sem-nota" className="stat">
           <FileText />
-          <span>Requisições a gerar</span>
+          <span>Serviços sem nota</span>
           <strong>
             {
               s
-                .current("billing_requests")
-                .filter((r) => r.status === "A gerar").length
+                .current("services")
+                .filter(
+                  (service) =>
+                    !notesForService(
+                      service.id,
+                      s.current("invoice_services"),
+                      s.current("invoices"),
+                    ).some((note) => note.status === "Gerada"),
+                ).length
             }
           </strong>
-          <small>Confira antes de emitir</small>
+          <small>Todos os meses · Prepare a requisição de nota</small>
         </Link>
       </section>
       <div className="dashboard-grid">

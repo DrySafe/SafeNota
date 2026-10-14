@@ -1,17 +1,20 @@
 import { useEffect, useState } from "react";
 import { monthKey, monthLabel } from "../../lib/periods";
 import { EntityPage } from "../../components/EntityPage";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useStore } from "../../app/Store";
 import { notesForService } from "./links";
 export function ServicesPage() {
   const s = useStore();
+  const [params] = useSearchParams();
+  const requestedKind =
+    params.get("situacao") === "sem-nota" ? "unbilled" : "all";
   const [month, setMonth] = useState("all");
-  const [kind, setKind] = useState("all");
+  const [kind, setKind] = useState(requestedKind);
   useEffect(() => {
     setMonth("all");
-    setKind("all");
-  }, [s.panelId]);
+    setKind(requestedKind);
+  }, [s.panelId, requestedKind]);
   const services = s.current("services");
   const invoices = s.current("invoices");
   const links = s.current("invoice_services");
