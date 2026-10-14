@@ -643,3 +643,54 @@ test("card de serviços sem nota conta atendimentos e abre a lista correspondent
   await page.getByLabel("Selecionar painel").selectOption("demo-safe");
   await expect(card.locator("strong")).toHaveText("0");
 });
+
+test("editar data de pagamento move o recebimento de mês e preserva o saldo", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date("2026-10-14T15:00:00Z"));
+  await navigate(page, "/receber");
+  await page
+    .getByRole("button", { name: "Registrar pagamento", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByRole("combobox", { name: "Cliente", exact: true })
+    .selectOption("client-1");
+  await dialog.getByLabel("Valor recebido").fill("50");
+  await dialog.getByLabel("Data", { exact: true }).fill("2026-10-14");
+  await dialog.getByLabel("Valor para NF 12").fill("50");
+  await dialog.getByRole("button", { name: "Confirmar recebimento" }).click();
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  await page.getByRole("button", { name: "Editar data", exact: true }).click();
+  await dialog.getByLabel("Data de recebimento").fill("2026-07-28");
+  await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(page.locator(".entity-card")).toContainText("14/10/2026");
+  await page.getByRole("button", { name: "Editar data", exact: true }).click();
+  await dialog.getByLabel("Data de recebimento").fill("2026-07-28");
+  await dialog
+    .getByRole("button", { name: "Salvar data", exact: true })
+    .click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".entity-card")).toHaveCount(1);
+  await expect(page.locator(".entity-card")).toContainText("28/07/2026");
+  await expect(page.locator(".entity-card")).toContainText("NF 12");
+  await navigate(page, "/");
+  const card = (label: string) =>
+    page
+      .locator(".stat")
+      .filter({ has: page.getByText(label, { exact: true }) });
+  for (const [month, received] of [
+    ["2026-07", "50,00"],
+    ["2026-10", "0,00"],
+  ]) {
+    await page.getByLabel("Mês do resumo").selectOption(month);
+    await expect(card("Recebido").locator("strong")).toContainText(received);
+    await expect(card("A receber").locator("strong")).toContainText("30,00");
+  }
+  await navigate(page, "/historico");
+  await expect(
+    page.getByText("Data do recebimento: 14/10/2026 → 28/07/2026", {
+      exact: true,
+    }),
+  ).toBeVisible();
+});

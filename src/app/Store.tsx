@@ -572,6 +572,48 @@ function useStoreValue() {
     await refresh();
     return r.data as string;
   }
+  async function updatePaymentDate(id: string, date: string) {
+    check();
+    const parsed = new Date(date + "T12:00:00Z");
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+      Number.isNaN(parsed.getTime()) ||
+      parsed.toISOString().slice(0, 10) !== date
+    )
+      throw new Error("Informe uma data válida.");
+    if (demo) {
+      const payment = current("payments").find(
+        (p) => p.id === id && p.status === "active",
+      );
+      if (!payment) throw new Error("Pagamento não encontrado ou revertido.");
+      if (payment.paid_date === date) return;
+      setData((d) => ({
+        ...d,
+        payments: d.payments.map((p) =>
+          p.id === id && p.panel_id === panelId ? { ...p, paid_date: date } : p,
+        ),
+        audit_events: [
+          {
+            ...audit("updated", "payments", id),
+            changes: {
+              changed_fields: ["paid_date"],
+              before: { paid_date: payment.paid_date },
+              after: { paid_date: date },
+            },
+          },
+          ...d.audit_events,
+        ],
+      }));
+      return;
+    }
+    const result = await supabase!.rpc("update_payment_date", {
+      p_panel: panelId,
+      p_payment: id,
+      p_date: date,
+    });
+    if (result.error) throw result.error;
+    await refresh();
+  }
   async function cancelInvoice(id: string, reason: string) {
     check(true);
     if (!reason.trim()) throw new Error("Informe o motivo.");
@@ -711,6 +753,7 @@ function useStoreValue() {
     restore,
     createPanel,
     recordPayment,
+    updatePaymentDate,
     reversePayment,
     cancelInvoice,
     generateInstallments,

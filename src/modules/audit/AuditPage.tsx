@@ -27,6 +27,9 @@ export function AuditPage() {
               <small>
                 {String(r.entity_id)} · Autor: {String(r.actor_id)}
               </small>
+              {paymentDateChange(r.changes) && (
+                <small>{paymentDateChange(r.changes)}</small>
+              )}
             </div>
             <span>{dateLabel(r.created_at)}</span>
           </div>
@@ -37,4 +40,17 @@ export function AuditPage() {
       </div>
     </>
   );
+}
+
+function paymentDateChange(changes: unknown) {
+  if (!changes || typeof changes !== "object") return null;
+  const { before, after } = changes as {
+    before?: { paid_date?: string };
+    after?: { paid_date?: string };
+  };
+  return before?.paid_date &&
+    after?.paid_date &&
+    before.paid_date !== after.paid_date
+    ? `Data do recebimento: ${dateLabel(before.paid_date)} → ${dateLabel(after.paid_date)}`
+    : null;
 }

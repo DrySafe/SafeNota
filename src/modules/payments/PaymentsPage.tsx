@@ -32,11 +32,13 @@ export function PaymentsPage() {
   const [pay, setPay] = useState<Row | true | null>(null);
   const [add, setAdd] = useState(false);
   const [detail, setDetail] = useState<Row | null>(null);
+  const [editingDate, setEditingDate] = useState<Row | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
     setPay(null);
     setAdd(false);
     setDetail(null);
+    setEditingDate(null);
   }, [s.panelId]);
   const rows = s
     .current("receivables")
@@ -230,6 +232,15 @@ export function PaymentsPage() {
               </div>
               <div className="entity-end">
                 <strong>{money(p.amount)}</strong>
+                {s.role !== "viewer" && p.status === "active" && (
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setEditingDate(p)}
+                  >
+                    Editar data
+                  </button>
+                )}
                 {s.role === "admin" && p.status !== "reversed" && (
                   <button
                     className="link"
@@ -253,6 +264,12 @@ export function PaymentsPage() {
             <div className="empty">Nenhum pagamento registrado.</div>
           )}
         </div>
+      )}
+      {editingDate && (
+        <PaymentDateForm
+          payment={editingDate}
+          onClose={() => setEditingDate(null)}
+        />
       )}
       {pay && (
         <PaymentForm
@@ -329,6 +346,78 @@ export function PaymentsPage() {
         </Modal>
       )}
     </>
+  );
+}
+function PaymentDateForm({
+  payment,
+  onClose,
+}: {
+  payment: Row;
+  onClose: () => void;
+}) {
+  const s = useStore();
+  const [date, setDate] = useState(String(payment.paid_date || ""));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  return (
+    <Modal
+      title="Alterar data de recebimento"
+      onClose={() => {
+        if (!busy) onClose();
+      }}
+    >
+      <form
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setBusy(true);
+          setError("");
+          try {
+            await s.updatePaymentDate(payment.id, date);
+            onClose();
+          } catch (error) {
+            setError(message(error));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <p>
+          {String(
+            s.current("clients").find((c) => c.id === payment.client_id)
+              ?.name || "Cliente",
+          )}{" "}
+          · {money(payment.amount)} · {String(payment.method)}
+        </p>
+        <label>
+          Data de recebimento
+          <input
+            type="date"
+            required
+            value={date}
+            disabled={busy}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </label>
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="form-footer">
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy}
+            onClick={onClose}
+          >
+            Cancelar
+          </button>
+          <button className="primary" disabled={busy}>
+            {busy ? "Salvando…" : "Salvar data"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 function PaymentForm({

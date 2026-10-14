@@ -27,6 +27,7 @@ beforeAll(async () => {
     "202610120003_workflow.sql",
     "202610130004_service_links.sql",
     "202610130005_requisition_receipts.sql",
+    "202610140006_payment_date.sql",
   ])
     await db.exec(
       await readFile(
@@ -611,4 +612,93 @@ it("consulta não pode gerar nota/cobrança pelo fluxo de requisição", async (
       )
     ).rows,
   ).toHaveLength(0);
+});
+
+it("corrige a data mantendo pagamento e distribuição e registra antes/depois", async () => {
+  await login(admin);
+  const r = await value(
+    `insert into public.receivables(panel_id,client_id,title,amount) values('${panel}','${client}','Data editável',100) returning id as v`,
+  );
+  const p = await value(
+    `select public.record_payment('${panel}','${client}',40,'2026-10-14','PIX','', '[{"receivable_id":"${r}","amount":40}]',gen_random_uuid()) as v`,
+  );
+  const before = (
+    await db.query("select * from public.payments where id=$1", [p])
+  ).rows[0];
+  const allocations = (
+    await db.query(
+      "select * from public.payment_allocations where payment_id=$1",
+      [p],
+    )
+  ).rows;
+  await db.query("select public.update_payment_date($1,$2,'2026-07-28')", [
+    panel,
+    p,
+  ]);
+  const after = (
+    await db.query("select * from public.payments where id=$1", [p])
+  ).rows[0];
+  expect(after).toEqual({
+    ...before,
+    paid_date: new Date("2026-07-28T00:00:00Z"),
+  });
+  expect(
+    (
+      await db.query(
+        "select * from public.payment_allocations where payment_id=$1",
+        [p],
+      )
+    ).rows,
+  ).toEqual(allocations);
+  expect(
+    (
+      await db.query(
+        "select * from public.audit_events where entity_id=$1 and changes->'before'->>'paid_date'='2026-10-14' and changes->'after'->>'paid_date'='2026-07-28'",
+        [p],
+      )
+    ).rows,
+  ).toHaveLength(1);
+  await expect(
+    db.query("select public.update_payment_date($1,$2,null)", [panel, p]),
+  ).rejects.toThrow();
+  await expect(
+    db.query("select public.update_payment_date($1,$2,'infinity')", [panel, p]),
+  ).rejects.toThrow();
+  await expect(
+    db.query("select public.update_payment_date($1,$2,'2026-09-01')", [
+      other,
+      p,
+    ]),
+  ).rejects.toThrow();
+  await login(operator);
+  await expect(
+    db.query("select public.update_payment_date($1,$2,'2026-09-01')", [
+      panel,
+      p,
+    ]),
+  ).rejects.toThrow();
+  await login(admin);
+  await db.query("select public.change_member($1,$2,'operator')", [
+    panel,
+    operator,
+  ]);
+  await login(operator);
+  await db.query("select public.update_payment_date($1,$2,'2026-09-01')", [
+    panel,
+    p,
+  ]);
+  await expect(
+    db.query(
+      "update public.payments set paid_date='2026-08-01' where id=$1 returning *",
+      [p],
+    ),
+  ).resolves.toMatchObject({ rows: [] });
+  await login(admin);
+  await db.query("select public.reverse_payment($1,$2,'Teste')", [panel, p]);
+  await expect(
+    db.query("select public.update_payment_date($1,$2,'2026-10-14')", [
+      panel,
+      p,
+    ]),
+  ).rejects.toThrow();
 });
