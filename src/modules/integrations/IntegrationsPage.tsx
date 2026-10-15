@@ -22,6 +22,7 @@ export function IntegrationsPage() {
   const [text, setText] = useState("");
   const [kind, setKind] = useState("request");
   const [preview, setPreview] = useState("");
+  const [previewNotice, setPreviewNotice] = useState("");
   const [edited, setEdited] = useState<Record<string, unknown>>({});
   useEffect(() => {
     if (!demo && supabase)
@@ -191,7 +192,13 @@ export function IntegrationsPage() {
           className="secondary"
           onClick={() => {
             try {
-              setPreview(JSON.stringify(extractEmail(text, kind), null, 2));
+              const extracted = extractEmail(text, kind);
+              setPreview(JSON.stringify(extracted, null, 2));
+              setPreviewNotice(
+                kind === "service" && !extracted.description
+                  ? "Este e-mail não informa a descrição do serviço. Você poderá completá-la na revisão do atendimento."
+                  : "",
+              );
             } catch (e) {
               setNotice(message(e));
             }
@@ -199,6 +206,11 @@ export function IntegrationsPage() {
         >
           Ver campos extraídos
         </button>
+        {previewNotice && (
+          <p className="notice" role="status">
+            {previewNotice}
+          </p>
+        )}
         {preview && <pre>{preview}</pre>}
       </section>
       <EntityPage

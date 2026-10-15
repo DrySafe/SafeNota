@@ -101,3 +101,37 @@ it("identifica transferência repetida e não inventa sufixo do chamado", () => 
     ).action,
   ).toBe("review");
 });
+
+it("transferência não confunde telefone com chamado e aceita descrição ausente", () => {
+  const message = `Sr(a)., TÉCNICO EXEMPLO
+O chamado de número 25307-1 acaba de ser transferido para sua chave.
+Chamado: 25307
+Chamado cliente: INC0679619
+Cliente: BCSF
+Endereço: Av. Exemplo, nº 2.445 (BR-235) - Aracaju/SE - CEP: 49.082-110
+Agendado para: 14/10/2026 - 18:00
+Técnico: TÉCNICO EXEMPLO
+Telefone: 11 9888-0000
+RG: 111.222.333-44
+CPF: 111.222.333-44
+E-mail: tecnico@example.test`;
+  expect(extractEmail(message, "service")).toMatchObject({
+    title: "Chamado 25307-1",
+    ticket_number: "25307-1",
+    ticket_numbers: "25307-1",
+    reference: "INC0679619",
+    description: "",
+    received_status: "",
+    amount: 0,
+  });
+  expect(assessEmailAutomation(message, context("service")).action).toBe(
+    "create",
+  );
+});
+it("requisição conserva vários chamados sem incluir telefones da assinatura", () => {
+  const message =
+    "Número do Pedido: 4500010999\nValor total: R$ 80,00\n23628-1 INC0654023\n24543-1 SUP-2056668\nTelefone: 11 9888-0000\nCelular: (11) 99999-0000\nCEP: 70070-120";
+  expect(extractEmail(message, "request").ticket_numbers).toBe(
+    "23628-1, 24543-1",
+  );
+});

@@ -784,3 +784,28 @@ test("modelos de remetentes Positivo são editáveis e separados por tipo", asyn
     await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
   }
 });
+
+test("prévia de transferência mantém só o chamado e informa descrição ausente", async ({
+  page,
+}) => {
+  await navigate(page, "/integracoes");
+  await page.getByLabel("Tipo", { exact: false }).selectOption("service");
+  await page
+    .getByLabel("Mensagem de exemplo")
+    .fill(
+      "O chamado de número 25307-1 acaba de ser transferido para sua chave.\nChamado: 25307\nChamado cliente: INC0679619\nTelefone: 11 9888-0000",
+    );
+  await page
+    .getByRole("button", { name: "Ver campos extraídos", exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      "Este e-mail não informa a descrição do serviço. Você poderá completá-la na revisão do atendimento.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  const extracted = JSON.parse(await page.locator("pre").innerText());
+  expect(extracted.ticket_numbers).toBe("25307-1");
+  expect(extracted.reference).toBe("INC0679619");
+  expect(extracted.description).toBe("");
+});

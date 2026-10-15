@@ -38,6 +38,10 @@ export function extractEmail(
       /chamados referentes[^\n]*\n([\s\S]*?)(?:dados do tomador|envio da nota|observa[çc][õo]es importantes|$)/i,
     )?.[1] || text;
   const ticketText = ticketSection
+    .replace(
+      /^[^\S\r\n]*\*{0,2}(?:telefone|tel\.?|celular|whatsapp|fone|contato telef[oô]nico|endere[çc]o|cpf|cnpj|rg|cep|e-?mail)\b[^\r\n]*(?:\r?\n|$)/gim,
+      "",
+    )
     .replace(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/g, "")
     .replace(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g, "")
     .replace(/\bCEP\s*[:–-]?\s*\d{5}-?\d{3}\b/gi, "");
@@ -67,24 +71,34 @@ export function extractEmail(
   )
     .replace(/\*{1,2}$/g, "")
     .trim();
+  const ticketNumber = capture(
+    "ticket_number",
+    /(?:chamado(?: de n[uú]mero)?)\s*:?\s*\*{0,2}(\d+-\d+)/i,
+  );
   return {
     title:
       kind === "request"
         ? "Requisição recebida por e-mail"
-        : description || "Chamado recebido por e-mail",
+        : description ||
+          (ticketNumber
+            ? `Chamado ${ticketNumber}`
+            : "Chamado recebido por e-mail"),
     order_number: capture(
       "order_number",
       /(?:número do pedido|pedido)\s*:?\s*\*{0,2}(\d+)/i,
     ),
-    ticket_number: capture(
-      "ticket_number",
-      /(?:chamado(?: de número)?|chamado)\s*:?\s*\*{0,2}(\d+-\d+)/i,
-    ),
-    ticket_numbers: [
-      ...new Set(
-        Array.from(ticketText.matchAll(/\b\d{4,}-\d+\b/g)).map((m) => m[0]),
-      ),
-    ].join(", "),
+    ticket_number: ticketNumber,
+    // A transfer has one authoritative ticket, read from its explicitly labelled field.
+    ticket_numbers:
+      kind === "service"
+        ? ticketNumber
+        : [
+            ...new Set(
+              Array.from(ticketText.matchAll(/\b\d{4,}-\d+\b/g)).map(
+                (m) => m[0],
+              ),
+            ),
+          ].join(", "),
     reference: capture("reference", /\b((?:INC|SUP)[-\d]+)\b/i),
     amount: amountText
       ? Number(amountText.replace(/\./g, "").replace(",", "."))
