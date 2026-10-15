@@ -15,6 +15,9 @@ export function IntegrationsPage() {
   const [notice, setNotice] = useState("");
   const [newRule, setNewRule] = useState<EmailKind | null>(null);
   const [busy, setBusy] = useState(false);
+  const [searchDays, setSearchDays] = useState("30");
+  const days = Number(searchDays);
+  const validDays = Number.isInteger(days) && days >= 1 && days <= 365;
   const [connections, setConnections] = useState<
     { id: string; email: string }[]
   >([]);
@@ -124,15 +127,31 @@ export function IntegrationsPage() {
             </button>
           </div>
         ))}
+        <label>
+          Buscar nos últimos (dias)
+          <input
+            type="number"
+            min="1"
+            max="365"
+            step="1"
+            value={searchDays}
+            disabled={busy}
+            onChange={(event) => setSearchDays(event.target.value)}
+          />
+        </label>
+        <p className="muted">
+          Escolha de 1 a 365 dias. Um período menor reduz a busca. Mensagens já
+          capturadas continuam protegidas contra duplicação.
+        </p>
         <button
           className="secondary"
-          disabled={busy}
+          disabled={busy || !validDays}
           onClick={async () => {
             setBusy(true);
             try {
-              const r = await invoke("sync");
+              const r = await invoke("sync", { days });
               setNotice(
-                `${r.captured} mensagens novas para revisar. ${r.ignored || 0} duplicadas ignoradas. ${(r.errors || []).join(" ")}`,
+                `Busca nos últimos ${days} dias: ${r.captured} mensagens novas para revisar. ${r.ignored || 0} duplicadas ignoradas. ${(r.errors || []).join(" ")}`,
               );
               await s.refresh();
             } catch (e) {

@@ -809,3 +809,24 @@ test("prévia de transferência mantém só o chamado e informa descrição ause
   expect(extracted.reference).toBe("INC0679619");
   expect(extracted.description).toBe("");
 });
+
+test("busca Gmail permite escolher dias e bloqueia períodos inválidos", async ({
+  page,
+}) => {
+  await navigate(page, "/integracoes");
+  const days = page.getByLabel("Buscar nos últimos (dias)");
+  const search = page.getByRole("button", { name: "Buscar novos e-mails" });
+  await expect(days).toHaveValue("30");
+  await days.fill("3");
+  await expect(search).toBeEnabled();
+  await search.click();
+  await expect(page.getByRole("status")).toContainText(
+    "Gmail real exige Supabase",
+  );
+  for (const value of ["", "0", "366", "1.5"]) {
+    await days.fill(value);
+    await expect(search).toBeDisabled();
+  }
+  await days.fill("365");
+  await expect(search).toBeEnabled();
+});

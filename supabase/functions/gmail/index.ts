@@ -1,3 +1,4 @@
+import { gmailSearchDays } from "../../../src/modules/integrations/searchPeriod.ts";
 import {
   admin,
   callback,
@@ -44,7 +45,7 @@ function body(part: Part): string {
       .replace(/&amp;/g, "&");
   return "";
 }
-async function sync(rules: Rule[]) {
+async function sync(rules: Rule[], days = 30) {
   const db = admin();
   let captured = 0;
   let ignored = 0;
@@ -97,7 +98,7 @@ async function sync(rules: Rule[]) {
         const url = new URL(
           "https://gmail.googleapis.com/gmail/v1/users/me/messages",
         );
-        url.searchParams.set("q", `from:${rule.sender} newer_than:30d`);
+        url.searchParams.set("q", `from:${rule.sender} newer_than:${days}d`);
         url.searchParams.set("maxResults", "50");
         if (page) url.searchParams.set("pageToken", page);
         const list = await google(url.toString(), {
@@ -257,6 +258,7 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true });
     }
     if (input.action === "sync") {
+      const days = gmailSearchDays(input.days);
       const member = check(
         await db
           .from("memberships")
@@ -275,7 +277,7 @@ Deno.serve(async (req: Request) => {
           .eq("status", "active")
           .is("deleted_at", null),
       ).data;
-      return json(await sync(rules || []));
+      return json(await sync(rules || [], days));
     }
     return json({ error: "Ação desconhecida" }, 400);
   } catch (e) {

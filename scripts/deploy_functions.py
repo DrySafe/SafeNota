@@ -17,7 +17,7 @@ def deploy(slug):
     import_map = 'supabase/functions/import_map.json'
     files = [entry, 'supabase/functions/_shared/runtime.ts', import_map]
     if slug == 'gmail':
-        files.append('src/modules/integrations/extract.ts')
+        files.extend(['src/modules/integrations/extract.ts', 'src/modules/integrations/searchPeriod.ts'])
     boundary = 'SafeNota' + uuid.uuid4().hex
     parts = []
     metadata = {'entrypoint_path': entry, 'import_map_path': import_map, 'verify_jwt': False, 'name': slug}

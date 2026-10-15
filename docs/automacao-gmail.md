@@ -72,7 +72,7 @@ Mostrar última busca, próxima execução prevista, registros criados, duplicad
 
 ## Execução em segundo plano
 
-Começar com consulta agendada, sugerida a cada cinco minutos, independente de o app estar aberto. Registrar execução, progresso e retomada. A busca atual cobre 30 dias e até 250 mensagens por regra; não é suficiente como sincronização incremental definitiva.
+Começar com consulta agendada, sugerida a cada cinco minutos, independente de o app estar aberto. Registrar execução, progresso e retomada. A busca manual permite escolher de 1 a 365 dias (padrão de 30), com até 250 mensagens por regra. Chamadas agendadas continuam usando 30 dias; não é suficiente como sincronização incremental definitiva.
 
 Persistir cursor/progresso por caixa/regra, processar lotes com limites e retentativas e respeitar quotas do Google. Depois usar Gmail History para alterações incrementais, com nova varredura quando o histórico expirar. Watch/Pub/Sub pode ser uma evolução posterior; não é necessário para a primeira versão.
 
