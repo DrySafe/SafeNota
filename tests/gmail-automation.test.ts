@@ -135,3 +135,31 @@ it("requisição conserva vários chamados sem incluir telefones da assinatura",
     "23628-1, 24543-1",
   );
 });
+
+it("reconhece serviço pelo chamado OU referência e aponta colisão entre ambos", () => {
+  const ctx = context("service");
+  ctx.services = [
+    {
+      id: "a",
+      panel_id: ctx.panelId,
+      client_id: ctx.clientId,
+      created_at: "",
+      ticket_number: "25307-1",
+      reference: "INC0679619",
+    },
+  ];
+  expect(
+    assessEmailAutomation("Chamado: 99999-1\nINC0679619", ctx),
+  ).toMatchObject({ action: "existing", existingId: "a" });
+  ctx.services.push({
+    id: "b",
+    panel_id: ctx.panelId,
+    client_id: ctx.clientId,
+    created_at: "",
+    ticket_number: "99999-1",
+    reference: "INC0000001",
+  });
+  expect(
+    assessEmailAutomation("Chamado: 99999-1\nINC0679619", ctx).action,
+  ).toBe("review");
+});

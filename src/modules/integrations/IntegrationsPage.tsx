@@ -1,3 +1,4 @@
+import { matchingServices } from "./duplicates";
 import { emailRuleFields, type EmailKind } from "./ruleFields";
 import { useEffect, useState } from "react";
 import { Mail, RefreshCw } from "lucide-react";
@@ -47,6 +48,16 @@ export function IntegrationsPage() {
     if (r.data.error) throw new Error(r.data.error);
     return r.data;
   }
+  const duplicateMatches =
+    selected?.kind === "service" && client
+      ? matchingServices(
+          s.data.services,
+          s.panelId,
+          client,
+          edited.ticket_number,
+          edited.reference,
+        )
+      : [];
   return (
     <>
       <header className="page-header">
@@ -110,7 +121,7 @@ export function IntegrationsPage() {
             try {
               const r = await invoke("sync");
               setNotice(
-                `${r.captured} mensagens novas para revisar. ${(r.errors || []).join(" ")}`,
+                `${r.captured} mensagens novas para revisar. ${r.ignored || 0} duplicadas ignoradas. ${(r.errors || []).join(" ")}`,
               );
               await s.refresh();
             } catch (e) {
@@ -155,7 +166,13 @@ export function IntegrationsPage() {
                 const destinations = [
                   ...new Set(rules.map((rule) => String(rule.client_id))),
                 ];
-                setClient(destinations.length === 1 ? destinations[0] : "");
+                setClient(
+                  s.current("clients").some((c) => c.id === r.client_id)
+                    ? String(r.client_id)
+                    : destinations.length === 1
+                      ? destinations[0]
+                      : "",
+                );
                 setEdited(r.extracted as Record<string, unknown>);
               }}
             >
@@ -169,6 +186,31 @@ export function IntegrationsPage() {
           <p className="muted">Nenhuma mensagem aguardando confirmação.</p>
         )}
       </section>
+      <details className="surface">
+        <summary>
+          Duplicados ignorados (
+          {
+            s
+              .current("captured_messages")
+              .filter((r) => r.status === "ignored" && r.duplicate_service_id)
+              .length
+          }
+          )
+        </summary>
+        {s
+          .current("captured_messages")
+          .filter((r) => r.status === "ignored" && r.duplicate_service_id)
+          .map((r) => (
+            <div className="summary-row" key={r.id}>
+              <div>
+                <strong>{String(r.subject)}</strong>
+                <small>
+                  {String(r.processing_note || "Serviço já cadastrado.")}
+                </small>
+              </div>
+            </div>
+          ))}
+      </details>
       <section className="surface">
         <h2>Testar extração</h2>
         <p>
@@ -332,9 +374,29 @@ export function IntegrationsPage() {
               ))}
             </select>
           </label>
+          {duplicateMatches.length === 1 && (
+            <p className="notice" role="status">
+              Este chamado ou referência já está cadastrado. A confirmação
+              apenas ignorará esta captura, preservando o serviço existente.
+            </p>
+          )}
+          {duplicateMatches.length > 1 && (
+            <p className="notice error" role="alert">
+              O chamado e a referência correspondem a mais de um serviço. Revise
+              os identificadores antes de continuar.
+            </p>
+          )}
+          {Boolean(selected.processing_note) && (
+            <p className="muted">{String(selected.processing_note)}</p>
+          )}
           <button
             className="primary"
-            disabled={busy || !client}
+            disabled={
+              busy ||
+              !client ||
+              s.role === "viewer" ||
+              duplicateMatches.length > 1
+            }
             onClick={async () => {
               setBusy(true);
               try {
@@ -347,6 +409,11 @@ export function IntegrationsPage() {
                 if (r.error) throw r.error;
                 await s.refresh();
                 setSelected(null);
+                setNotice(
+                  duplicateMatches.length === 1
+                    ? "Captura ignorada: serviço já cadastrado."
+                    : "Captura processada com verificação de duplicidade.",
+                );
               } catch (e) {
                 setNotice(message(e));
               } finally {
@@ -354,7 +421,9 @@ export function IntegrationsPage() {
               }
             }}
           >
-            Confirmar cadastro
+            {duplicateMatches.length === 1
+              ? "Ignorar: serviço já cadastrado"
+              : "Confirmar cadastro"}
           </button>
         </Modal>
       )}

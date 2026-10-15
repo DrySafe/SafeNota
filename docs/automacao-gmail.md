@@ -17,15 +17,16 @@ O conteúdo do e-mail é dado de entrada; instruções no texto não alteram per
 
 ## O que existe e o que foi preparado
 
-| Parte                                                                    | Situação no código                                                                                         |
-| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| Conectar/desconectar Google, consentimento e refresh token criptografado | Base existente nas Edge Functions `gmail` e `gmail-callback`; operação real depende da configuração OAuth. |
-| Filtros de remetente/palavras-chave por painel                           | Existentes em `email_rules`.                                                                               |
-| Captura manual e endpoint `sync-all`                                     | Existentes; endpoint não comprova que haja agendamento ativo.                                              |
-| Revisar e confirmar uma captura                                          | Interface e RPC `confirm_capture` existentes.                                                              |
-| Extração dos modelos fornecidos                                          | Ampliada nesta etapa: prazo de envio, descrição e status recebido; evita confundir CNPJ/CEP com chamados.  |
-| Decidir criar, revisar ou reconhecer registro existente                  | Base pura em `automation.ts`, com testes. **Ainda não ligada ao processamento de produção.**               |
-| Criação automática agendada e vínculo pedido/chamados                    | Próxima etapa: exige regra com cliente definido e RPC transacional específica. Não está ativada.           |
+| Parte                                                                    | Situação no código                                                                                                                 |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Conectar/desconectar Google, consentimento e refresh token criptografado | Base existente nas Edge Functions `gmail` e `gmail-callback`; operação real depende da configuração OAuth.                         |
+| Filtros de remetente/palavras-chave por painel                           | Existentes em `email_rules`.                                                                                                       |
+| Captura manual e endpoint `sync-all`                                     | Existentes; endpoint não comprova que haja agendamento ativo.                                                                      |
+| Revisar e confirmar uma captura                                          | Interface e RPC `confirm_capture` existentes.                                                                                      |
+| Extração dos modelos fornecidos                                          | Ampliada nesta etapa: prazo de envio, descrição e status recebido; evita confundir CNPJ/CEP com chamados.                          |
+| Decidir criar, revisar ou reconhecer registro existente                  | Base pura em `automation.ts`, com testes. **Ainda não ligada ao processamento de produção.**                                       |
+| Duplicidade de transferências                                            | Implementada na captura e confirmação: chamado completo ou referência, com isolamento por cliente/painel e histórico de ignorados. |
+| Criação automática agendada e vínculo pedido/chamados                    | Próxima etapa: exige regra com cliente definido e RPC transacional específica. Não está ativada.                                   |
 
 `assessEmailAutomation` apenas calcula uma decisão. Não acessa o Gmail nem grava dados. A captura atual mantém a fila de revisão; não foi ativado um robô em contas reais nesta etapa.
 

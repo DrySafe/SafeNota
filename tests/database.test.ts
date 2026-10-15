@@ -29,6 +29,7 @@ beforeAll(async () => {
     "202610130005_requisition_receipts.sql",
     "202610140006_payment_date.sql",
     "202610140007_email_rule_clients.sql",
+    "202610150008_gmail_service_duplicates.sql",
   ])
     await db.exec(
       await readFile(
@@ -743,4 +744,137 @@ it("permite vários remetentes por tipo com cliente isolado no painel", async ()
       )
     ).rows,
   ).toHaveLength(0);
+});
+
+it("captura e confirmação ignoram chamado ou referência existente sem alterar o serviço", async () => {
+  await login(admin);
+  const service = await value(
+    `insert into public.services(panel_id,client_id,title,ticket_number,reference,amount) values('${panel}','${client}','Original','76543-1','SUP-9999',50) returning id as v`,
+  );
+  await db.exec("reset role");
+  const connection = await value(
+    `insert into public.gmail_accounts(user_id,email) values('${admin}','dedup@example.test') returning id as v`,
+  );
+  await login(admin);
+  const rule = await value(
+    `insert into public.email_rules(panel_id,client_id,connection_id,title,sender,kind,status) values('${panel}','${client}','${connection}','Duplicados','tickets@example.test','service','active') returning id as v`,
+  );
+  let serial = 0;
+  const capture = async (ticket: string, reference: string, legacy = false) => {
+    await db.exec("reset role");
+    const row = (
+      await db.query<{
+        id: string;
+        status: string;
+        duplicate_service_id: string;
+        processing_note: string;
+      }>(
+        "insert into public.captured_messages(panel_id,rule_id,client_id,connection_id,message_id,kind,sender,subject,extracted) values($1,$2,$3,$4,$5,'service','tickets@example.test','Transferência',$6) returning id,status,duplicate_service_id,processing_note",
+        [
+          panel,
+          legacy ? null : rule,
+          legacy ? null : client,
+          connection,
+          "mail-" + ++serial,
+          JSON.stringify({
+            title: "Incoming",
+            ticket_number: ticket,
+            reference,
+            amount: 999,
+          }),
+        ],
+      )
+    ).rows[0];
+    await login(admin);
+    return row;
+  };
+  const sameTicket = await capture("76543-1", "");
+  expect(sameTicket).toMatchObject({
+    status: "ignored",
+    duplicate_service_id: service,
+  });
+  const sameReference = await capture("76544-1", " sup-9999 ");
+  expect(sameReference).toMatchObject({
+    status: "ignored",
+    duplicate_service_id: service,
+  });
+  const legacy = await capture("76543-1", "", true);
+  await db.query("select public.confirm_capture($1,$2,$3)", [
+    panel,
+    legacy.id,
+    client,
+  ]);
+  expect(
+    (
+      await db.query(
+        "select status,duplicate_service_id from public.captured_messages where id=$1",
+        [legacy.id],
+      )
+    ).rows[0],
+  ).toEqual({ status: "ignored", duplicate_service_id: service });
+  const first = await capture("76545-1", "INC-8888");
+  const repeated = await capture("76545-1", "INC-8888");
+  expect(first.status).toBe("pending");
+  const created = (
+    await db.query<{ id: string }>(
+      "select public.confirm_capture($1,$2,$3) as id",
+      [panel, first.id, client],
+    )
+  ).rows[0].id;
+  expect(
+    (
+      await db.query<{ id: string }>(
+        "select public.confirm_capture($1,$2,$3) as id",
+        [panel, repeated.id, client],
+      )
+    ).rows[0].id,
+  ).toBe(created);
+  expect(
+    (
+      await db.query(
+        "select * from public.services where panel_id=$1 and client_id=$2 and ticket_number='76545-1'",
+        [panel, client],
+      )
+    ).rows,
+  ).toHaveLength(1);
+  const conflict = await capture("76543-1", "INC-8888");
+  expect(conflict.status).toBe("pending");
+  expect(conflict.processing_note).toContain("mais de um serviço");
+  await expect(
+    db.query("select public.confirm_capture($1,$2,$3)", [
+      panel,
+      conflict.id,
+      client,
+    ]),
+  ).rejects.toThrow();
+  expect(
+    (
+      await db.query(
+        "select title,amount::text from public.services where id=$1",
+        [service],
+      )
+    ).rows[0],
+  ).toEqual({ title: "Original", amount: "50.00" });
+  await db.query("select public.archive_record($1,'services',$2)", [
+    panel,
+    service,
+  ]);
+  expect((await capture("76543-1", "")).status).toBe("ignored");
+  const client2 = await value(
+    `insert into public.clients(panel_id,name) values('${panel}','Outro destino') returning id as v`,
+  );
+  const legacyOther = await capture("76543-1", "SUP-9999", true);
+  await db.query("select public.confirm_capture($1,$2,$3)", [
+    panel,
+    legacyOther.id,
+    client2,
+  ]);
+  expect(
+    (
+      await db.query(
+        "select status from public.captured_messages where id=$1",
+        [legacyOther.id],
+      )
+    ).rows[0],
+  ).toEqual({ status: "confirmed" });
 });

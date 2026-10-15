@@ -1,3 +1,4 @@
+import { matchingServices } from "./duplicates";
 import type { Row } from "../../types";
 import { cents } from "../../lib/finance";
 import { extractEmail } from "./extract";
@@ -35,20 +36,16 @@ export function assessEmailAutomation(
   if (context.kind === "service") {
     if (!extracted.ticket_number)
       reasons.push("Não foi encontrado o número completo do chamado.");
-    const matches = services.filter(
-      (r) => r.ticket_number === extracted.ticket_number,
+    const matches = matchingServices(
+      context.services,
+      context.panelId,
+      context.clientId,
+      extracted.ticket_number,
+      extracted.reference,
     );
     if (matches.length > 1)
-      reasons.push("Há mais de um serviço com esse chamado.");
-    if (matches.length === 1) {
-      if (
-        extracted.reference &&
-        matches[0].reference &&
-        extracted.reference !== matches[0].reference
-      )
-        reasons.push("A referência difere do serviço já cadastrado.");
-      else existingId = matches[0].id;
-    }
+      reasons.push("Chamado e referência apontam para mais de um serviço.");
+    if (matches.length === 1) existingId = matches[0].id;
   } else {
     if (!extracted.order_number)
       reasons.push("Não foi encontrado o número da requisição.");

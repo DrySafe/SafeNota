@@ -14,6 +14,7 @@ interface Rule {
   id: string;
   panel_id: string;
   connection_id: string;
+  client_id: string | null;
   sender: string;
   kind: string;
   keywords: string | null;
@@ -46,6 +47,7 @@ function body(part: Part): string {
 async function sync(rules: Rule[]) {
   const db = admin();
   let captured = 0;
+  let ignored = 0;
   const errors: string[] = [];
   const access = new Map<string, string>();
   for (const rule of rules) {
@@ -146,15 +148,22 @@ async function sync(rules: Rule[]) {
             .from("captured_messages")
             .insert({
               panel_id: rule.panel_id,
+              rule_id: rule.id,
+              client_id: rule.client_id,
               connection_id: account.id,
               message_id: m.id,
               kind: rule.kind,
               sender,
               subject,
               extracted,
-            });
+            })
+            .select("status")
+            .single();
           if (insert.error && insert.error.code !== "23505") throw insert.error;
-          if (!insert.error) captured++;
+          if (!insert.error) {
+            if (insert.data?.status === "ignored") ignored++;
+            else captured++;
+          }
         }
         page = list.nextPageToken || "";
         pages++;
@@ -169,7 +178,7 @@ async function sync(rules: Rule[]) {
       );
     }
   }
-  return { captured, errors };
+  return { captured, ignored, errors };
 }
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return json({});
