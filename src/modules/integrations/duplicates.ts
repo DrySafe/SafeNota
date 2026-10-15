@@ -26,3 +26,20 @@ export function matchingServices(
       )
     : [];
 }
+
+export function matchingRequests(
+  requests: Row[],
+  panelId: string,
+  clientId: string,
+  order: unknown,
+) {
+  const number = String(order || "").trim();
+  return number
+    ? requests.filter(
+        (r) =>
+          r.panel_id === panelId &&
+          r.client_id === clientId &&
+          String(r.order_number || "").trim() === number,
+      )
+    : [];
+}

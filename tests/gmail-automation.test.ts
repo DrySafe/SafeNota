@@ -170,3 +170,23 @@ it("prioriza chamado completo e usa referência como alternativa", () => {
     assessEmailAutomation("Chamado: 12345-1\nINC0679619", ctx).action,
   ).toBe("review");
 });
+
+it("compara pedidos completos sem remover zeros e respeita cliente/painel", async () => {
+  const { matchingRequests } =
+    await import("../src/modules/integrations/duplicates");
+  const rows = [
+    {
+      id: "a",
+      panel_id: "p",
+      client_id: "c",
+      created_at: "",
+      order_number: " 00123 ",
+      deleted_at: "2026-01-01",
+    },
+  ];
+  expect(matchingRequests(rows, "p", "c", "00123")).toHaveLength(1);
+  expect(matchingRequests(rows, "p", "c", "123")).toHaveLength(0);
+  expect(matchingRequests(rows, "other", "c", "00123")).toHaveLength(0);
+  expect(matchingRequests(rows, "p", "other", "00123")).toHaveLength(0);
+  expect(matchingRequests(rows, "p", "c", "")).toHaveLength(0);
+});

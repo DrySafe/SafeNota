@@ -31,6 +31,7 @@ beforeAll(async () => {
     "202610140007_email_rule_clients.sql",
     "202610150008_gmail_service_duplicates.sql",
     "202610150009_gmail_ticket_priority.sql",
+    "202610150010_gmail_request_duplicates.sql",
   ])
     await db.exec(
       await readFile(
@@ -888,4 +889,149 @@ it("captura e confirmação ignoram chamado ou referência existente sem alterar
       )
     ).rows[0],
   ).toEqual({ status: "confirmed" });
+});
+
+it("ignora pedidos repetidos na captura e confirmação, isolados por cliente e painel", async () => {
+  await login(admin);
+  const original = await value(
+    `insert into public.billing_requests(panel_id,client_id,title,order_number,amount) values('${panel}','${client}','Pedido original',' 4500099999 ',80) returning id as v`,
+  );
+  await db.exec("reset role");
+  const connection = await value(
+    `insert into public.gmail_accounts(user_id,email) values('${admin}','requests-dedup@example.test') returning id as v`,
+  );
+  await login(admin);
+  const rule = await value(
+    `insert into public.email_rules(panel_id,client_id,connection_id,title,sender,kind,status) values('${panel}','${client}','${connection}','Pedidos duplicados','requests@example.test','request','active') returning id as v`,
+  );
+  let serial = 0;
+  async function capture(order: string, legacy = false) {
+    await db.exec("reset role");
+    const row = (
+      await db.query<{
+        id: string;
+        status: string;
+        duplicate_request_id: string;
+      }>(
+        "insert into public.captured_messages(panel_id,rule_id,client_id,connection_id,message_id,kind,sender,subject,extracted) values($1,$2,$3,$4,$5,'request','requests@example.test','Pedido',$6) returning id,status,duplicate_request_id",
+        [
+          panel,
+          legacy ? null : rule,
+          legacy ? null : client,
+          connection,
+          `request-mail-${++serial}`,
+          JSON.stringify({
+            title: "Incoming",
+            order_number: order,
+            ticket_numbers: "12345-1",
+            amount: 999,
+            notes: "Incoming instructions",
+          }),
+        ],
+      )
+    ).rows[0];
+    await login(admin);
+    return row;
+  }
+  const duplicate = await capture("4500099999");
+  expect(duplicate.status).toBe("ignored");
+  expect(duplicate.duplicate_request_id).toBe(original);
+  expect(
+    (
+      await db.query("select public.confirm_capture($1,$2,$3) as id", [
+        panel,
+        duplicate.id,
+        client,
+      ])
+    ).rows[0].id,
+  ).toBe(original);
+  const legacy = await capture("4500099999", true);
+  expect(
+    (
+      await db.query("select public.confirm_capture($1,$2,$3) as id", [
+        panel,
+        legacy.id,
+        client,
+      ])
+    ).rows[0].id,
+  ).toBe(original);
+  const first = await capture("4500088888");
+  const second = await capture("4500088888");
+  const created = (
+    await db.query("select public.confirm_capture($1,$2,$3) as id", [
+      panel,
+      first.id,
+      client,
+    ])
+  ).rows[0].id;
+  expect(
+    (
+      await db.query("select public.confirm_capture($1,$2,$3) as id", [
+        panel,
+        second.id,
+        client,
+      ])
+    ).rows[0].id,
+  ).toBe(created);
+  expect(
+    (
+      await db.query(
+        "select count(*)::int as n from public.billing_requests where panel_id=$1 and client_id=$2 and order_number='4500088888'",
+        [panel, client],
+      )
+    ).rows[0].n,
+  ).toBe(1);
+  expect(
+    (
+      await db.query(
+        "select title,amount::text from public.billing_requests where id=$1",
+        [original],
+      )
+    ).rows[0],
+  ).toEqual({ title: "Pedido original", amount: "80.00" });
+  await db.query("select public.archive_record($1,'billing_requests',$2)", [
+    panel,
+    original,
+  ]);
+  expect((await capture("4500099999")).status).toBe("ignored");
+  const client2 = await value(
+    `insert into public.clients(panel_id,name) values('${panel}','Outro cliente pedidos') returning id as v`,
+  );
+  const otherCapture = await capture("4500099999", true);
+  const otherId = (
+    await db.query("select public.confirm_capture($1,$2,$3) as id", [
+      panel,
+      otherCapture.id,
+      client2,
+    ])
+  ).rows[0].id;
+  expect(otherId).not.toBe(original);
+  await expect(
+    db.query("select public.confirm_capture($1,$2,$3)", [
+      other,
+      first.id,
+      client,
+    ]),
+  ).rejects.toThrow();
+  await db.query(
+    "insert into public.billing_requests(panel_id,client_id,title,order_number,amount) values($1,$2,'Conflicting',' 4500088888 ',80)",
+    [panel, client],
+  );
+  const conflict = await capture("4500088888");
+  expect(conflict.status).toBe("pending");
+  await expect(
+    db.query("select public.confirm_capture($1,$2,$3)", [
+      panel,
+      conflict.id,
+      client,
+    ]),
+  ).rejects.toThrow();
+  const empty = await capture("  ");
+  await expect(
+    db.query("select public.confirm_capture($1,$2,$3)", [
+      panel,
+      empty.id,
+      client,
+    ]),
+  ).rejects.toThrow();
 });

@@ -1,4 +1,4 @@
-import { matchingServices } from "./duplicates";
+import { matchingServices, matchingRequests } from "./duplicates";
 import { emailRuleFields, type EmailKind } from "./ruleFields";
 import { useEffect, useState } from "react";
 import { Mail, RefreshCw } from "lucide-react";
@@ -57,7 +57,18 @@ export function IntegrationsPage() {
           edited.ticket_number,
           edited.reference,
         )
-      : [];
+      : selected?.kind === "request" && client
+        ? matchingRequests(
+            s.data.billing_requests,
+            s.panelId,
+            client,
+            edited.order_number,
+          )
+        : [];
+  const duplicateLabel =
+    selected?.kind === "request"
+      ? "requisição já cadastrada"
+      : "serviço já cadastrado";
   return (
     <>
       <header className="page-header">
@@ -192,14 +203,21 @@ export function IntegrationsPage() {
           {
             s
               .current("captured_messages")
-              .filter((r) => r.status === "ignored" && r.duplicate_service_id)
-              .length
+              .filter(
+                (r) =>
+                  r.status === "ignored" &&
+                  (r.duplicate_service_id || r.duplicate_request_id),
+              ).length
           }
           )
         </summary>
         {s
           .current("captured_messages")
-          .filter((r) => r.status === "ignored" && r.duplicate_service_id)
+          .filter(
+            (r) =>
+              r.status === "ignored" &&
+              (r.duplicate_service_id || r.duplicate_request_id),
+          )
           .map((r) => (
             <div className="summary-row" key={r.id}>
               <div>
@@ -376,14 +394,14 @@ export function IntegrationsPage() {
           </label>
           {duplicateMatches.length === 1 && (
             <p className="notice" role="status">
-              Este chamado ou referência já está cadastrado. A confirmação
-              apenas ignorará esta captura, preservando o serviço existente.
+              Duplicidade identificada: {duplicateLabel}. A confirmação apenas
+              ignorará esta captura, preservando o registro existente.
             </p>
           )}
           {duplicateMatches.length > 1 && (
             <p className="notice error" role="alert">
-              O chamado e a referência correspondem a mais de um serviço. Revise
-              os identificadores antes de continuar.
+              Os identificadores correspondem a mais de um registro. Revise
+              antes de continuar.
             </p>
           )}
           {Boolean(selected.processing_note) && (
@@ -411,7 +429,7 @@ export function IntegrationsPage() {
                 setSelected(null);
                 setNotice(
                   duplicateMatches.length === 1
-                    ? "Captura ignorada: serviço já cadastrado."
+                    ? `Captura ignorada: ${duplicateLabel}.`
                     : "Captura processada com verificação de duplicidade.",
                 );
               } catch (e) {
@@ -422,7 +440,7 @@ export function IntegrationsPage() {
             }}
           >
             {duplicateMatches.length === 1
-              ? "Ignorar: serviço já cadastrado"
+              ? `Ignorar: ${duplicateLabel}`
               : "Confirmar cadastro"}
           </button>
         </Modal>
