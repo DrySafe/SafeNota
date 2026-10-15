@@ -28,6 +28,7 @@ beforeAll(async () => {
     "202610130004_service_links.sql",
     "202610130005_requisition_receipts.sql",
     "202610140006_payment_date.sql",
+    "202610140007_email_rule_clients.sql",
   ])
     await db.exec(
       await readFile(
@@ -701,4 +702,45 @@ it("corrige a data mantendo pagamento e distribuição e registra antes/depois",
       p,
     ]),
   ).rejects.toThrow();
+});
+
+it("permite vários remetentes por tipo com cliente isolado no painel", async () => {
+  await db.exec("reset role");
+  const connection = await value(
+    `insert into public.gmail_accounts(user_id,email) values('${admin}','gmail-rules@example.test') returning id as v`,
+  );
+  await login(admin);
+  for (const [sender, kind] of [
+    ["donotreply@fieldsmais.smtp-cervelloesm.com.br", "service"],
+    ["outro-estado@example.test", "service"],
+    ["ajudasmais@positivosmais.com", "request"],
+  ]) {
+    await db.query(
+      "insert into public.email_rules(panel_id,client_id,connection_id,title,sender,kind,status) values($1,$2,$3,'Regra teste',$4,$5,'paused')",
+      [panel, client, connection, sender, kind],
+    );
+  }
+  expect(
+    (
+      await db.query(
+        "select * from public.email_rules where connection_id=$1",
+        [connection],
+      )
+    ).rows,
+  ).toHaveLength(3);
+  await expect(
+    db.query(
+      "insert into public.email_rules(panel_id,client_id,connection_id,title,sender,kind) values($1,$2,$3,'Inválida','invalid@example.test','service')",
+      [other, client, connection],
+    ),
+  ).rejects.toThrow();
+  await login(outsider);
+  expect(
+    (
+      await db.query(
+        "select * from public.email_rules where connection_id=$1",
+        [connection],
+      )
+    ).rows,
+  ).toHaveLength(0);
 });

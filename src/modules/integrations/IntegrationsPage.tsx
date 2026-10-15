@@ -1,6 +1,7 @@
+import { emailRuleFields, type EmailKind } from "./ruleFields";
 import { useEffect, useState } from "react";
 import { Mail, RefreshCw } from "lucide-react";
-import { EntityPage } from "../../components/EntityPage";
+import { EntityPage, EntityForm } from "../../components/EntityPage";
 import { Modal } from "../../components/Modal";
 import { useStore, message } from "../../app/Store";
 import { useAuth } from "../auth/Auth";
@@ -11,6 +12,7 @@ export function IntegrationsPage() {
   const s = useStore();
   const { demo } = useAuth();
   const [notice, setNotice] = useState("");
+  const [newRule, setNewRule] = useState<EmailKind | null>(null);
   const [busy, setBusy] = useState(false);
   const [connections, setConnections] = useState<
     { id: string; email: string }[]
@@ -137,7 +139,22 @@ export function IntegrationsPage() {
               key={r.id}
               onClick={() => {
                 setSelected(r);
-                setClient("");
+                const rules = s
+                  .current("email_rules")
+                  .filter(
+                    (rule) =>
+                      rule.connection_id === r.connection_id &&
+                      rule.kind === r.kind &&
+                      String(rule.sender).trim().toLowerCase() ===
+                        String(r.sender).trim().toLowerCase() &&
+                      s
+                        .current("clients")
+                        .some((client) => client.id === rule.client_id),
+                  );
+                const destinations = [
+                  ...new Set(rules.map((rule) => String(rule.client_id))),
+                ];
+                setClient(destinations.length === 1 ? destinations[0] : "");
                 setEdited(r.extracted as Record<string, unknown>);
               }}
             >
@@ -188,44 +205,63 @@ export function IntegrationsPage() {
         table="email_rules"
         title="Regras de captura"
         subtitle="Cada remetente tem um destino e um formato de extração."
-        fields={[
-          { key: "title", label: "Nome da regra", required: true },
-          {
-            key: "connection_id",
-            label: "Conta Gmail conectada",
-            required: true,
-            choices: connections.map((c) => ({ value: c.id, label: c.email })),
-          },
-          {
-            key: "sender",
-            label: "E-mail exato do remetente",
-            type: "email",
-            required: true,
-          },
-          {
-            key: "kind",
-            label: "Tipo",
-            choices: [
-              { value: "request", label: "Pedido de emissão" },
-              { value: "service", label: "Transferência de chamado" },
-            ],
-          },
-          { key: "keywords", label: "Palavras-chave (separadas por vírgula)" },
-          {
-            key: "patterns",
-            label: "Padrões JSON (opcional; grupo 1 captura cada campo)",
-            type: "textarea",
-          },
-          {
-            key: "status",
-            label: "Situação",
-            choices: [
-              { value: "active", label: "Ativa" },
-              { value: "paused", label: "Pausada" },
-            ],
-          },
-        ]}
+        fields={emailRuleFields(connections)}
+        rowExtra={(rule) => (
+          <>
+            <span className="rule-sender">{String(rule.sender)}</span>
+            <span className="badge">
+              {rule.kind === "service"
+                ? "Transferência de chamado"
+                : "Requisição de nota"}
+            </span>
+          </>
+        )}
+        extra={
+          <section className="surface">
+            <h2>Adicionar remetentes por tipo</h2>
+            <p>
+              Cadastre uma regra para cada remetente e tipo de mensagem. Você
+              pode ter vários endereços para o mesmo tipo, separados por cliente
+              e estado.
+            </p>
+            <p className="muted">
+              As sugestões Positivo abaixo são editáveis. O destino é o painel
+              atual e o cliente escolhido. Novas regras começam pausadas para
+              configuração.
+            </p>
+            {s.role === "admin" && (
+              <div className="period-toolbar">
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setNewRule("service")}
+                >
+                  Nova regra de chamados
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setNewRule("request")}
+                >
+                  Nova regra de requisições
+                </button>
+              </div>
+            )}
+          </section>
+        }
       />
+      {newRule && (
+        <EntityForm
+          table="email_rules"
+          title={
+            newRule === "service"
+              ? "Nova regra de chamados"
+              : "Nova regra de requisições"
+          }
+          fields={emailRuleFields(connections, newRule)}
+          onClose={() => setNewRule(null)}
+        />
+      )}
       {selected && (
         <Modal title="Confirmar captura" onClose={() => setSelected(null)}>
           <p>{String(selected.subject)}</p>

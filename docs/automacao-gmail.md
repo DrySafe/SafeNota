@@ -31,7 +31,12 @@ O conteúdo do e-mail é dado de entrada; instruções no texto não alteram per
 
 ## Regras iniciais da Positivo
 
-Criar duas regras independentes, com remetentes reais a confirmar. O endereço informado para **enviar** a nota não deve ser presumido como remetente dos pedidos.
+Remetentes confirmados como sugestões iniciais, sempre editáveis no app:
+
+- Transferências: `donotreply@fieldsmais.smtp-cervelloesm.com.br`.
+- Requisições de nota: `ajudasmais@positivosmais.com`.
+
+Cadastrar uma regra por remetente/tipo/cliente no painel atual. Outros estados podem usar outras regras, sem alterar o código. Novas regras começam pausadas até configurar a conta, o cliente e testar o formato.
 
 | Mensagem            | Campos                                                                                                             | Resultado esperado                                                                                                                                 |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -54,7 +59,7 @@ Mostrar última busca, próxima execução prevista, registros criados, duplicad
 
 ## Persistência e processamento — próxima implementação
 
-- Acrescentar à regra `client_id`, perfil de extração e modo de processamento, com vínculo composto ao painel. Manter autorizações administrativas e proprietário da caixa.
+- `client_id` e seu vínculo composto ao painel foram adicionados às regras. Perfil de extração e modo de processamento automático permanecem na próxima etapa. Manter autorizações administrativas e proprietário da caixa.
 - Persistir regra de origem, data do e-mail, identificadores Gmail, decisão, campos extraídos, motivos de revisão e entidade criada. Tokens permanecem privados no backend.
 - Criar RPC exclusiva do worker para processar a captura atomicamente: validar regra ativa, conta ativa, acesso atual do proprietário ao painel e cliente autorizado; bloquear o painel; reconhecer duplicatas; criar serviço ou requisição; gravar `request_services`; registrar resultado e auditoria.
 - A RPC de revisão atual depende do usuário autenticado e ainda não vincula `request_services` nem persiste o prazo extraído. Atualizá-la para o mesmo fluxo transacional. O worker não deve simplesmente chamar `confirm_capture` com `service_role`, pois essa função exige permissões de usuário.

@@ -752,3 +752,35 @@ test("requisições usam cores por saldo e cada aba baixa seu relatório PDF", a
     page.locator(".entity-card").filter({ hasText: "4500010497" }),
   ).toHaveClass(/request-paid/);
 });
+
+test("modelos de remetentes Positivo são editáveis e separados por tipo", async ({
+  page,
+}) => {
+  await navigate(page, "/integracoes");
+  for (const [button, sender, kind] of [
+    [
+      "Nova regra de chamados",
+      "donotreply@fieldsmais.smtp-cervelloesm.com.br",
+      "service",
+    ],
+    ["Nova regra de requisições", "ajudasmais@positivosmais.com", "request"],
+  ]) {
+    await page.getByRole("button", { name: button, exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByLabel("E-mail exato do remetente")).toHaveValue(
+      sender,
+    );
+    await expect(dialog.getByLabel("Tipo de mensagem")).toHaveValue(kind);
+    await expect(dialog.getByLabel("Situação")).toHaveValue("paused");
+    await dialog
+      .getByLabel("E-mail exato do remetente")
+      .fill("outro-estado@example.test");
+    await dialog
+      .getByLabel("Cliente de destino", { exact: false })
+      .selectOption("client-1");
+    await expect(dialog.getByLabel("E-mail exato do remetente")).toHaveValue(
+      "outro-estado@example.test",
+    );
+    await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+  }
+});

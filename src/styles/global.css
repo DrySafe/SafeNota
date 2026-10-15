@@ -1083,3 +1083,7 @@ pre {
   background: #fff0ee;
   border-color: #efcfca;
 }
+.rule-sender {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
