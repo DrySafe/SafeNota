@@ -62,7 +62,7 @@ supabase/
 - PDF, XML e comprovantes opcionais no Storage privado, com links assinados de 60 segundos.
 - Registro de cancelamento fiscal após a operação no emissor; bloqueio de cancelamento com recebimento ativo. Não cancela notas no portal oficial.
 - RLS e vínculos por painel, auditoria no servidor e arquivamento/restauração restritos a administradores.
-- Regras Gmail por remetente, palavras-chave e padrões simples. Revisão com edição de campos antes de confirmar cadastro.
+- Regras Gmail por remetente, palavras-chave e padrões simples. Revisão com edição de campos antes de confirmar cadastro. A estrutura para automatizar os dois modelos Positivo está em [docs/automacao-gmail.md](docs/automacao-gmail.md); o cadastro automático ainda não está ativado.
 - Exportação CSV de cadastros, com neutralização de fórmulas de planilha.
 
 Requisições selecionam os serviços em `request_services`. Cada nota aponta para uma requisição e conserva sua própria seleção em `invoice_services`: ao criar/importar a nota, os serviços da requisição são copiados. Alterações posteriores da requisição não mudam os serviços de notas já geradas. A tela de serviços mostra notas vinculadas com links diretos e identifica atendimentos sem nota ativa. Notas canceladas permanecem visíveis com indicação de cancelamento; notas arquivadas deixam de contar como geradas. O campo de chamados continua disponível para compatibilidade com e-mail/XML. Não há ainda interface para ratear uma nota entre múltiplos pedidos. Projetos usam etapas textuais com estado de conclusão, sem datas individuais. O modelo completo em `docs/modelo-de-dados.md` descreve extensões futuras, não uma declaração de tabelas já implantadas.

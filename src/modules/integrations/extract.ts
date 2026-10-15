@@ -31,13 +31,47 @@ export function extractEmail(
   };
   const amountText = capture(
     "amount",
-    /(?:valor total[^\n:]*|valor)\s*:?\s*R\$\s*([\d.,]+)/i,
+    /(?:valor total[^\n:]*|valor)\s*:?\s*\*{0,2}R\$\s*([\d.,]+)/i,
   );
+  const ticketSection =
+    text.match(
+      /chamados referentes[^\n]*\n([\s\S]*?)(?:dados do tomador|envio da nota|observa[çc][õo]es importantes|$)/i,
+    )?.[1] || text;
+  const ticketText = ticketSection
+    .replace(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/g, "")
+    .replace(/\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g, "")
+    .replace(/\bCEP\s*[:–-]?\s*\d{5}-?\d{3}\b/gi, "");
+  const deadline = capture(
+    "send_deadline",
+    /(?:prazo limite[^\n]*?é|prazo limite[^\n:]*:|prazo de envio[^\n:]*:)\s*\*{0,2}(\d{2}\/\d{2}\/\d{4})/i,
+  );
+  const parts = deadline.split("/");
+  const deadlineIso =
+    parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : "";
+  const deadlineDate = new Date(deadlineIso + "T12:00:00Z");
+  const sendDeadline =
+    deadlineIso &&
+    !Number.isNaN(deadlineDate.getTime()) &&
+    deadlineDate.toISOString().slice(0, 10) === deadlineIso
+      ? deadlineIso
+      : null;
+  const description = capture(
+    "description",
+    /descri[çc][ãa]o:\s*\*{0,2}([^\n]+)/i,
+  )
+    .replace(/\*{1,2}$/g, "")
+    .trim();
+  const receivedStatus = capture(
+    "received_status",
+    /status do atendimento:\s*\*{0,2}([^\n]+)/i,
+  )
+    .replace(/\*{1,2}$/g, "")
+    .trim();
   return {
     title:
       kind === "request"
-        ? "Pedido recebido por e-mail"
-        : "Chamado recebido por e-mail",
+        ? "Requisição recebida por e-mail"
+        : description || "Chamado recebido por e-mail",
     order_number: capture(
       "order_number",
       /(?:número do pedido|pedido)\s*:?\s*\*{0,2}(\d+)/i,
@@ -47,12 +81,17 @@ export function extractEmail(
       /(?:chamado(?: de número)?|chamado)\s*:?\s*\*{0,2}(\d+-\d+)/i,
     ),
     ticket_numbers: [
-      ...new Set(Array.from(text.matchAll(/\b\d{4,}-\d+\b/g)).map((m) => m[0])),
+      ...new Set(
+        Array.from(ticketText.matchAll(/\b\d{4,}-\d+\b/g)).map((m) => m[0]),
+      ),
     ].join(", "),
     reference: capture("reference", /\b((?:INC|SUP)[-\d]+)\b/i),
     amount: amountText
       ? Number(amountText.replace(/\./g, "").replace(",", "."))
       : 0,
+    send_deadline: sendDeadline,
+    description,
+    received_status: receivedStatus,
     notes: text.slice(0, 10000),
   };
 }
