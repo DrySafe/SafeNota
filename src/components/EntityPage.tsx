@@ -18,6 +18,7 @@ export function EntityPage({
   fields,
   extra,
   rowExtra,
+  rowClassName,
   rowFilter,
   groupBy,
   groupLabel,
@@ -28,6 +29,7 @@ export function EntityPage({
   fields: Field[];
   extra?: ReactNode;
   rowExtra?: (row: Row) => ReactNode;
+  rowClassName?: (row: Row) => string;
   rowFilter?: (row: Row) => boolean;
   groupBy?: (row: Row) => string;
   groupLabel?: (group: string) => string;
@@ -142,7 +144,10 @@ export function EntityPage({
                   {groupLabel ? groupLabel(groupBy(r)) : groupBy(r)}
                 </h2>
               )}
-            <article className="entity-card" key={r.id}>
+            <article
+              className={`entity-card ${rowClassName?.(r) || ""}`}
+              key={r.id}
+            >
               <button className="entity-main" onClick={() => setSelected(r)}>
                 <span className="entity-icon">
                   {String(r.title || r.name || "#")

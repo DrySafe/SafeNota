@@ -1071,3 +1071,15 @@ pre {
   font-size: 16px;
   text-transform: capitalize;
 }
+
+.entity-card.request-paid {
+  background: #edf7ef;
+  border-color: #c9e3cf;
+}
+.entity-card.request-pending {
+  background: #fff;
+}
+.entity-card.request-overdue {
+  background: #fff0ee;
+  border-color: #efcfca;
+}

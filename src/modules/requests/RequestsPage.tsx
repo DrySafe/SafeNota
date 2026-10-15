@@ -1,7 +1,8 @@
+import { requestFinancialState } from "./financialState";
 import { requestFields } from "./fields";
 import { Link } from "react-router-dom";
 import { useStore } from "../../app/Store";
-import { balance, cents, money } from "../../lib/finance";
+import { cents, money } from "../../lib/finance";
 import { EntityPage } from "../../components/EntityPage";
 export function RequestsPage() {
   const s = useStore();
@@ -17,32 +18,21 @@ export function RequestsPage() {
           <Link to="/notas">Importar XML / conferir documentos</Link>
         </div>
       }
+      rowClassName={(request) =>
+        `request-${requestFinancialState(request, s.data).state}`
+      }
       rowExtra={(request) => {
         const notes = s
           .current("invoices")
           .filter((i) => i.request_id === request.id);
-        const rs = s
-          .current("receivables")
-          .filter(
-            (r) =>
-              notes.some((i) => i.id === r.invoice_id) &&
-              r.status !== "cancelled",
-          );
-        const remaining =
-          rs.reduce(
-            (n, r) =>
-              n +
-              cents(
-                balance(
-                  r,
-                  s.current("payment_allocations"),
-                  s.current("payments"),
-                ),
-              ),
-            0,
-          ) / 100;
+        const {
+          receivables: rs,
+          remaining,
+          state,
+        } = requestFinancialState(request, s.data);
         return (
           <>
+            {state === "overdue" && <span className="badge red">Atrasado</span>}
             <span className="muted">
               Chamados: {String(request.ticket_numbers || "Nenhum informado")}
             </span>

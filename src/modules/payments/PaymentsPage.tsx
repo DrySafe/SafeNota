@@ -1,7 +1,8 @@
+import { receiptReport } from "./reports/data";
 import { monthKey, monthLabel } from "../../lib/periods";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, FileDown } from "lucide-react";
 import { useStore, message } from "../../app/Store";
 import { Modal } from "../../components/Modal";
 import { Attachments, EntityForm } from "../../components/EntityPage";
@@ -34,6 +35,7 @@ export function PaymentsPage() {
   const [detail, setDetail] = useState<Row | null>(null);
   const [editingDate, setEditingDate] = useState<Row | null>(null);
   const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
   useEffect(() => {
     setPay(null);
     setAdd(false);
@@ -89,6 +91,34 @@ export function PaymentsPage() {
           ),
     )
     .filter((p) => !paymentMonth || monthKey(p.paid_date) === paymentMonth);
+  async function exportReport() {
+    if (!s.panel) return;
+    setExporting(true);
+    setError("");
+    const report = receiptReport(
+      tab === "paid" ? "paid" : "pending",
+      s.panelId,
+      tab === "paid" ? visiblePayments : rows,
+      s.data,
+    );
+    const name = s.panel.name;
+    const filters = [
+      requestFilter
+        ? `Requisição ${String(s.current("billing_requests").find((r) => r.id === requestFilter)?.order_number || "")}`
+        : "",
+      tab === "paid" && paymentMonth ? monthLabel(paymentMonth) : "",
+      tab === "pending" && params.get("filter") ? "Somente vencidos" : "",
+      tab === "pending" && search ? `Busca: ${search}` : "",
+    ].filter(Boolean);
+    try {
+      const { downloadReceiptPdf } = await import("./reports/pdf");
+      downloadReceiptPdf(report, name, filters);
+    } catch (error) {
+      setError(message(error));
+    } finally {
+      setExporting(false);
+    }
+  }
   return (
     <>
       <header className="page-header">
@@ -119,6 +149,25 @@ export function PaymentsPage() {
             Pagamentos
           </button>
         </div>
+        <button
+          type="button"
+          className="secondary"
+          disabled={
+            exporting ||
+            s.loading ||
+            !(tab === "paid"
+              ? visiblePayments.some((p) => p.status === "active")
+              : rows.length)
+          }
+          onClick={() => void exportReport()}
+        >
+          <FileDown size={18} />
+          {exporting
+            ? "Gerando PDF…"
+            : tab === "paid"
+              ? "Relatório de pagos (PDF)"
+              : "Relatório de pendentes (PDF)"}
+        </button>
         {s.role !== "viewer" && (
           <button className="secondary" onClick={() => setAdd(true)}>
             Nova cobrança

@@ -17,6 +17,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.99.0",
     "fflate": "^0.8.2",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "lucide-react": "^0.468.0",
     "re2js": "^2.8.6",
     "react": "^19.0.0",

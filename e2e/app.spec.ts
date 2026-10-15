@@ -694,3 +694,61 @@ test("editar data de pagamento move o recebimento de mês e preserva o saldo", a
     }),
   ).toBeVisible();
 });
+
+test("requisições usam cores por saldo e cada aba baixa seu relatório PDF", async ({
+  page,
+}, testInfo) => {
+  await page.clock.setFixedTime(new Date("2026-10-14T15:00:00Z"));
+  await navigate(page, "/requisicoes");
+  await expect(page.locator(".entity-card").first()).toHaveClass(
+    /request-overdue/,
+  );
+  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByLabel("Descrição", { exact: false })
+    .first()
+    .fill("Requisição futura");
+  await dialog.getByLabel("Cliente", { exact: false }).selectOption("client-1");
+  await dialog.getByLabel("Número da requisição / pedido").fill("4500099111");
+  await dialog.getByLabel("Valor solicitado").fill("150");
+  await dialog
+    .getByLabel("Situação", { exact: false })
+    .selectOption("Faturado");
+  await dialog.getByLabel("Número da nota já emitida").fill("901");
+  await dialog.getByLabel("Data de emissão da nota").fill("2026-10-14");
+  await dialog.getByLabel("Vencimento do recebimento").fill("2026-11-14");
+  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(
+    page.locator(".entity-card").filter({ hasText: "Requisição futura" }),
+  ).toHaveClass(/request-pending/);
+  await navigate(page, "/receber");
+  let downloadPromise = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Relatório de pendentes (PDF)", exact: true })
+    .click();
+  const pending = await downloadPromise;
+  expect(pending.suggestedFilename()).toContain("SafeNota-pendentes-");
+  await pending.saveAs(testInfo.outputPath("pendentes.pdf"));
+  await page
+    .getByRole("button", { name: "Registrar pagamento", exact: true })
+    .click();
+  await dialog
+    .getByRole("combobox", { name: "Cliente", exact: true })
+    .selectOption("client-1");
+  await dialog.getByLabel("Valor recebido").fill("80");
+  await dialog.getByLabel("Valor para NF 12").fill("80");
+  await dialog.getByRole("button", { name: "Confirmar recebimento" }).click();
+  await page.getByRole("button", { name: "Fechar", exact: true }).click();
+  downloadPromise = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Relatório de pagos (PDF)", exact: true })
+    .click();
+  const paid = await downloadPromise;
+  expect(paid.suggestedFilename()).toContain("SafeNota-pagos-");
+  await paid.saveAs(testInfo.outputPath("pagos.pdf"));
+  await navigate(page, "/requisicoes");
+  await expect(
+    page.locator(".entity-card").filter({ hasText: "4500010497" }),
+  ).toHaveClass(/request-paid/);
+});
