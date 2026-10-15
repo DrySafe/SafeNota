@@ -136,7 +136,7 @@ it("requisição conserva vários chamados sem incluir telefones da assinatura",
   );
 });
 
-it("reconhece serviço pelo chamado OU referência e aponta colisão entre ambos", () => {
+it("prioriza chamado completo e usa referência como alternativa", () => {
   const ctx = context("service");
   ctx.services = [
     {
@@ -160,6 +160,13 @@ it("reconhece serviço pelo chamado OU referência e aponta colisão entre ambos
     reference: "INC0000001",
   });
   expect(
-    assessEmailAutomation("Chamado: 99999-1\nINC0679619", ctx).action,
+    assessEmailAutomation("Chamado: 99999-1\nINC0679619", ctx),
+  ).toMatchObject({ action: "existing", existingId: "b" });
+  ctx.services[1].reference = "INC0679619";
+  expect(
+    assessEmailAutomation("Chamado: 25307-1\nINC0679619", ctx),
+  ).toMatchObject({ action: "existing", existingId: "a" });
+  expect(
+    assessEmailAutomation("Chamado: 12345-1\nINC0679619", ctx).action,
   ).toBe("review");
 });

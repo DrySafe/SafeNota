@@ -22,8 +22,9 @@ begin
  if public.confirm_capture(v_panel,v_b,v_client)<>v_new then raise exception 'FAIL: repeated confirmation';end if;
  if (select count(*) from public.services where panel_id=v_panel and client_id=v_client and ticket_number='77777-1')<>1 then raise exception 'FAIL: duplicate service inserted';end if;
  if not exists(select 1 from public.services where id=v_service and title='Original' and amount=50) then raise exception 'FAIL: existing service changed';end if;
+ insert into public.services(panel_id,client_id,title,ticket_number,reference) values(v_panel,v_client,'Shared ref','66666-1','SUP77777');
  execute 'set local role service_role';
- insert into public.captured_messages(panel_id,rule_id,client_id,connection_id,message_id,kind,sender,subject,extracted) values(v_panel,v_rule,v_client,v_account,'conflict','service','tickets@example.invalid','Test',jsonb_build_object('title','Conflict','ticket_number','88888-1','reference','SUP77777','amount',40)) returning id into v_capture;
+ insert into public.captured_messages(panel_id,rule_id,client_id,connection_id,message_id,kind,sender,subject,extracted) values(v_panel,v_rule,v_client,v_account,'conflict','service','tickets@example.invalid','Test',jsonb_build_object('title','Conflict','ticket_number','00000-1','reference','SUP77777','amount',40)) returning id into v_capture;
  if not exists(select 1 from public.captured_messages where id=v_capture and status='pending' and processing_note is not null) then raise exception 'FAIL: identifier conflict hidden';end if;
  execute 'set local role authenticated';
  v_denied:=false;begin perform public.confirm_capture(v_panel,v_capture,v_client);exception when raise_exception then v_denied:=true;end;

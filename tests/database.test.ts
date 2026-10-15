@@ -30,6 +30,7 @@ beforeAll(async () => {
     "202610140006_payment_date.sql",
     "202610140007_email_rule_clients.sql",
     "202610150008_gmail_service_duplicates.sql",
+    "202610150009_gmail_ticket_priority.sql",
   ])
     await db.exec(
       await readFile(
@@ -837,7 +838,17 @@ it("captura e confirmação ignoram chamado ou referência existente sem alterar
       )
     ).rows,
   ).toHaveLength(1);
-  const conflict = await capture("76543-1", "INC-8888");
+  const exact = await capture("76543-1", "INC-8888");
+  expect(exact.status).toBe("ignored");
+  expect(exact.duplicate_service_id).toBe(service);
+  await db.query(
+    "insert into public.services(panel_id,client_id,title,ticket_number,reference) values($1,$2,'Shared reference','76546-1','SUP-9999')",
+    [panel, client],
+  );
+  expect((await capture("76543-1", "SUP-9999")).duplicate_service_id).toBe(
+    service,
+  );
+  const conflict = await capture("00000-1", "SUP-9999");
   expect(conflict.status).toBe("pending");
   expect(conflict.processing_note).toContain("mais de um serviço");
   await expect(
