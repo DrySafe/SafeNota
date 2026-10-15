@@ -830,3 +830,29 @@ test("busca Gmail permite escolher dias e bloqueia períodos inválidos", async 
   await days.fill("365");
   await expect(search).toBeEnabled();
 });
+
+test("histórico mostra chamado e autor legíveis sem IDs do banco", async ({
+  page,
+}) => {
+  await navigate(page, "/servicos");
+  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByLabel("Descrição", { exact: false })
+    .fill("Serviço para histórico");
+  await dialog.getByLabel("Cliente", { exact: false }).selectOption("client-1");
+  await dialog.getByLabel("Número completo do chamado").fill("99123-1");
+  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await navigate(page, "/historico");
+  const entry = page
+    .locator(".summary-row")
+    .filter({ hasText: "Chamado 99123-1" });
+  await expect(entry).toContainText("Cadastro · Serviço");
+  await expect(entry).toContainText("Autor: Usuário de demonstração");
+  await expect(entry).not.toContainText("entity_id");
+  await expect(entry).not.toContainText("null");
+  expect(await entry.innerText()).not.toMatch(
+    /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i,
+  );
+});

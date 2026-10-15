@@ -32,6 +32,7 @@ beforeAll(async () => {
     "202610150008_gmail_service_duplicates.sql",
     "202610150009_gmail_ticket_priority.sql",
     "202610150010_gmail_request_duplicates.sql",
+    "202610150011_friendly_audit_history.sql",
   ])
     await db.exec(
       await readFile(
@@ -1034,4 +1035,67 @@ it("ignora pedidos repetidos na captura e confirmação, isolados por cliente e 
       client,
     ]),
   ).rejects.toThrow();
+});
+
+it("histórico guarda descrição e e-mail do autor mesmo após exclusão", async () => {
+  await login(admin);
+  const id = await value(
+    `insert into public.services(panel_id,client_id,title,ticket_number) values('${panel}','${client}','Teste histórico','12300-1') returning id as v`,
+  );
+  const inserted = (
+    await db.query(
+      "select entity_label,actor_label from public.audit_events where entity_id=$1 and action='insert'",
+      [id],
+    )
+  ).rows[0];
+  expect(inserted).toEqual({
+    entity_label: "Chamado 12300-1",
+    actor_label: "admin@example.test",
+  });
+  await db.exec("reset role");
+  await db.query("delete from public.services where id=$1", [id]);
+  await login(admin);
+  expect(
+    (
+      await db.query(
+        "select entity_label from public.audit_events where entity_id=$1 and action='delete'",
+        [id],
+      )
+    ).rows[0].entity_label,
+  ).toBe("Chamado 12300-1");
+  expect(
+    (
+      await db.query(
+        "select entity_label from public.audit_events where entity_id=$1 and action='insert'",
+        [id],
+      )
+    ).rows[0].entity_label,
+  ).toBe("Chamado 12300-1");
+  await db.exec("reset role; reset request.jwt.claim.sub;");
+  const connection = await value(
+    `insert into public.gmail_accounts(user_id,email) values('${admin}','audit-test@example.test') returning id as v`,
+  );
+  const capture = await value(
+    `insert into public.captured_messages(panel_id,connection_id,message_id,kind,sender,subject,extracted) values('${panel}','${connection}','audit-test','request','sender@example.test','Solicitação de nota','{"order_number":"4500001234"}') returning id as v`,
+  );
+  await login(admin);
+  expect(
+    (
+      await db.query(
+        "select entity_label,actor_label from public.audit_events where entity_id=$1",
+        [capture],
+      )
+    ).rows[0],
+  ).toEqual({
+    entity_label: "Pedido 4500001234",
+    actor_label: "Automação do Gmail",
+  });
+  await login(outsider);
+  expect(
+    (
+      await db.query("select * from public.audit_events where entity_id=$1", [
+        capture,
+      ])
+    ).rows,
+  ).toHaveLength(0);
 });

@@ -99,3 +99,5 @@ Na captura de transferências Gmail, um chamado completo ou referência já exis
 Requisições capturadas pelo Gmail também são deduplicadas pelo número completo do pedido no mesmo cliente/painel, inclusive arquivadas. A captura e a confirmação preservam a requisição original e mantêm histórico de ignorados; números ambíguos exigem revisão.
 
 Na tela E-mails, o campo “Buscar nos últimos (dias)” permite escolher de 1 a 365 dias para cada busca manual (padrão: 30). O período se aplica aos remetentes/regras ativos do painel; reduzir a janela diminui o volume consultado. O limite de 250 mensagens por regra continua sinalizado quando há mais resultados.
+
+O histórico traduz ações e entidades, mostra chamado/pedido/nome do registro e identifica o autor pelo e-mail; capturas sem usuário autenticado aparecem como “Automação do Gmail”. Novos eventos guardam a descrição no momento da ação, inclusive em exclusões. Eventos antigos são preenchidos pelos dados ainda disponíveis, sem expor IDs internos como descrição.
