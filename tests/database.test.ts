@@ -34,6 +34,7 @@ beforeAll(async () => {
     "202610150010_gmail_request_duplicates.sql",
     "202610150011_friendly_audit_history.sql",
     "202610160012_request_references.sql",
+    "202610160013_gmail_request_service_links.sql",
   ])
     await db.exec(
       await readFile(
@@ -1151,4 +1152,202 @@ it("salva e edita referências da requisição na mesma ordem dos chamados", asy
     ticket_references: payload.ticket_references,
     title: "Descrição editada",
   });
+});
+
+it("confirmação Gmail marca serviços pelo chamado exato e mantém o vínculo na nota gerada", async () => {
+  await login(admin);
+  const newClient = await value(
+    `insert into public.clients(panel_id,name) values('${panel}','Cliente importação vinculada') returning id as v`,
+  );
+  const a = await value(
+    `insert into public.services(panel_id,client_id,title,ticket_number,reference,amount) values('${panel}','${newClient}','Primeiro','81111-1 ','INC-SHARED',80) returning id as v`,
+  );
+  const b = await value(
+    `insert into public.services(panel_id,client_id,title,ticket_number,reference,amount) values('${panel}','${newClient}','Segundo','81112-1','INC-SHARED',80) returning id as v`,
+  );
+  await db.exec("reset role");
+  const account = await value(
+    `insert into public.gmail_accounts(user_id,email) values('${admin}','request-links@example.test') returning id as v`,
+  );
+  const cap = await value(
+    `insert into public.captured_messages(panel_id,connection_id,message_id,kind,sender,subject,extracted) values('${panel}','${account}','link-new','request','sender@example.test','Pedido','{"title":"Importado","order_number":"4500066666","ticket_numbers":"81111-1, 81112-1, 81111-1","reference":"INC-A, SUP-B","amount":160}') returning id as v`,
+  );
+  await login(admin);
+  const id = (
+    await db.query("select public.confirm_capture($1,$2,$3) as id", [
+      panel,
+      cap,
+      newClient,
+    ])
+  ).rows[0].id;
+  const ids = async () =>
+    (
+      await db.query(
+        "select service_id from public.request_services where request_id=$1 order by service_id",
+        [id],
+      )
+    ).rows.map((r) => r.service_id);
+  expect(await ids()).toEqual([a, b].sort());
+  await db.query("select public.confirm_capture($1,$2,$3)", [
+    panel,
+    cap,
+    newClient,
+  ]);
+  expect(await ids()).toEqual([a, b].sort());
+  const request = (
+    await db.query("select * from public.billing_requests where id=$1", [id])
+  ).rows[0];
+  await db.query(
+    "select public.save_requisition_workflow($1,$2,$3::uuid[],$4,$5)",
+    [
+      panel,
+      JSON.stringify({ ...request, status: "Faturado" }),
+      [a, b],
+      id,
+      JSON.stringify({ number: "GMAIL-LINK-TEST", issue_date: "2026-10-15" }),
+    ],
+  );
+  expect(
+    (
+      await db.query(
+        "select l.service_id from public.invoice_services l join public.invoices i on i.id=l.invoice_id where i.request_id=$1 order by l.service_id",
+        [id],
+      )
+    ).rows.map((r) => r.service_id),
+  ).toEqual([a, b].sort());
+});
+
+it("não adivinha serviços ausentes, duplicados, arquivados ou de outro cliente", async () => {
+  await login(admin);
+  const c = await value(
+    `insert into public.clients(panel_id,name) values('${panel}','Cliente sem correspondência') returning id as v`,
+  );
+  for (const number of ["82222-1", "82222-1"])
+    await db.query(
+      "insert into public.services(panel_id,client_id,title,ticket_number) values($1,$2,'Ambíguo',$3)",
+      [panel, c, number],
+    );
+  const archived = (
+    await db.query(
+      "insert into public.services(panel_id,client_id,title,ticket_number) values($1,$2,'Arquivado','82223-1') returning id",
+      [panel, c],
+    )
+  ).rows[0].id;
+  await db.query("select public.archive_record($1,'services',$2)", [
+    panel,
+    archived,
+  ]);
+  await db.query(
+    "insert into public.services(panel_id,client_id,title,ticket_number) values($1,$2,'Outro cliente','82224-1')",
+    [panel, client],
+  );
+  await db.exec("reset role");
+  const account = await value(
+    `insert into public.gmail_accounts(user_id,email) values('${admin}','request-unmatched@example.test') returning id as v`,
+  );
+  const cap = await value(
+    `insert into public.captured_messages(panel_id,connection_id,message_id,kind,sender,subject,extracted) values('${panel}','${account}','unmatched','request','sender@example.test','Pedido','{"title":"Importado","order_number":"4500055555","ticket_numbers":"82222-1, 82223-1, 82224-1, 99999-1","amount":160}') returning id as v`,
+  );
+  await login(admin);
+  const id = (
+    await db.query("select public.confirm_capture($1,$2,$3) as id", [
+      panel,
+      cap,
+      c,
+    ])
+  ).rows[0].id;
+  expect(
+    (
+      await db.query(
+        "select * from public.request_services where request_id=$1",
+        [id],
+      )
+    ).rows,
+  ).toHaveLength(0);
+  const note = (
+    await db.query(
+      "select processing_note from public.captured_messages where id=$1",
+      [cap],
+    )
+  ).rows[0].processing_note;
+  expect(note).toContain("82222-1 (mais de um serviço)");
+  expect(note).toContain("82223-1 (não encontrado)");
+  expect(note).toContain("82224-1 (não encontrado)");
+  expect(note).toContain("99999-1 (não encontrado)");
+});
+
+it("repara importações antigas sem sobrescrever a seleção manual", async () => {
+  await login(admin);
+  const c = await value(
+    `insert into public.clients(panel_id,name) values('${panel}','Reparo de importações') returning id as v`,
+  );
+  const a = await value(
+    `insert into public.services(panel_id,client_id,title,ticket_number) values('${panel}','${c}','A','83333-1') returning id as v`,
+  );
+  const b = await value(
+    `insert into public.services(panel_id,client_id,title,ticket_number) values('${panel}','${c}','B','83334-1') returning id as v`,
+  );
+  const make = async (order: string) =>
+    value(
+      `insert into public.billing_requests(panel_id,client_id,title,order_number,ticket_numbers,amount) values('${panel}','${c}','Antiga','${order}','83333-1, 83334-1',160) returning id as v`,
+    );
+  const imported = await make("4500044441");
+  const manuallySelected = await make("4500044442");
+  const manual = await make("4500044443");
+  const invoice = (
+    await db.query("select public.save_invoice($1,$2) as id", [
+      panel,
+      JSON.stringify({
+        client_id: c,
+        request_id: imported,
+        title: "Nota antiga",
+        number: "LEGACY-LINK",
+        issue_date: "2026-10-15",
+        amount: 160,
+        net_amount: 160,
+      }),
+    ])
+  ).rows[0].id;
+  await db.exec("reset role");
+  await db.query(
+    "insert into public.request_services(panel_id,request_id,service_id) values($1,$2,$3)",
+    [panel, manuallySelected, b],
+  );
+  const account = await value(
+    `insert into public.gmail_accounts(user_id,email) values('${admin}','repair-links@example.test') returning id as v`,
+  );
+  for (const request of [imported, manuallySelected])
+    await db.query(
+      "insert into public.captured_messages(panel_id,connection_id,message_id,kind,sender,subject,extracted,status,confirmed_entity_id) values($1,$2,$3,'request','sender@example.test','Antigo','{}','confirmed',$4)",
+      [panel, account, request, request],
+    );
+  const migration = await readFile(
+    new URL(
+      "../supabase/migrations/202610160013_gmail_request_service_links.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  await db.exec(
+    "begin;" + migration.slice(migration.indexOf("-- Repair only")) + "commit;",
+  );
+  await login(admin);
+  const selection = async (request: string) =>
+    (
+      await db.query(
+        "select service_id from public.request_services where request_id=$1 order by service_id",
+        [request],
+      )
+    ).rows.map((r) => r.service_id);
+  expect(await selection(imported)).toEqual([a, b].sort());
+  expect(await selection(manuallySelected)).toEqual([b]);
+  expect(await selection(manual)).toEqual([]);
+  expect(
+    (
+      await db.query(
+        "select service_id from public.invoice_services where invoice_id=$1 order by service_id",
+        [invoice],
+      )
+    ).rows.map((r) => r.service_id),
+  ).toEqual([a, b].sort());
 });

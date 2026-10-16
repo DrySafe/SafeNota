@@ -26,7 +26,8 @@ O conteúdo do e-mail é dado de entrada; instruções no texto não alteram per
 | Extração dos modelos fornecidos                                          | Ampliada nesta etapa: prazo de envio, descrição e status recebido; evita confundir CNPJ/CEP com chamados.                          |
 | Decidir criar, revisar ou reconhecer registro existente                  | Base pura em `automation.ts`, com testes. **Ainda não ligada ao processamento de produção.**                                       |
 | Duplicidade de transferências                                            | Implementada na captura e confirmação: chamado completo ou referência, com isolamento por cliente/painel e histórico de ignorados. |
-| Criação automática agendada e vínculo pedido/chamados                    | Próxima etapa: exige regra com cliente definido e RPC transacional específica. Não está ativada.                                   |
+| Vínculo pedido/chamados na confirmação | Implementado na RPC: chamado completo e único no mesmo cliente/painel; ausências e ambiguidades são informadas para revisão. |
+| Criação automática agendada | Próxima etapa. Não está ativada. |
 
 `assessEmailAutomation` apenas calcula uma decisão. Não acessa o Gmail nem grava dados. A captura atual mantém a fila de revisão; não foi ativado um robô em contas reais nesta etapa.
 

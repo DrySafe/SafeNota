@@ -1,3 +1,4 @@
+import { requestTicketMatches } from "./requestTickets";
 import { matchingServices, matchingRequests } from "./duplicates";
 import { emailRuleFields, type EmailKind } from "./ruleFields";
 import { useEffect, useState } from "react";
@@ -68,6 +69,16 @@ export function IntegrationsPage() {
             edited.order_number,
           )
         : [];
+  const ticketMatches =
+    selected?.kind === "request" && client
+      ? requestTicketMatches(
+          s.data.services,
+          s.panelId,
+          client,
+          edited.ticket_numbers,
+        )
+      : [];
+  const unresolvedTickets = ticketMatches.filter((t) => t.matches.length !== 1);
   const duplicateLabel =
     selected?.kind === "request"
       ? "requisição já cadastrada"
@@ -454,6 +465,35 @@ export function IntegrationsPage() {
               ))}
             </select>
           </label>
+          {selected.kind === "request" &&
+            client &&
+            duplicateMatches.length === 0 && (
+              <div className="notice" role="status">
+                <p>
+                  {ticketMatches.filter((t) => t.matches.length === 1).length}{" "}
+                  de {ticketMatches.length} chamados encontrados. Os serviços
+                  encontrados serão vinculados automaticamente.
+                </p>
+                {unresolvedTickets.length > 0 && (
+                  <p>
+                    Revise os chamados não vinculados:{" "}
+                    {unresolvedTickets
+                      .map(
+                        (t) =>
+                          `${t.ticket} (${t.matches.length ? "mais de um serviço" : "não encontrado"})`,
+                      )
+                      .join(", ")}
+                    . Você poderá selecioná-los ao editar a requisição.
+                  </p>
+                )}
+                {!ticketMatches.length && (
+                  <p>
+                    Nenhum chamado informado. Selecione os serviços ao editar a
+                    requisição.
+                  </p>
+                )}
+              </div>
+            )}
           {duplicateMatches.length === 1 && (
             <p className="notice" role="status">
               Duplicidade identificada: {duplicateLabel}. A confirmação apenas
@@ -487,12 +527,19 @@ export function IntegrationsPage() {
                   p_extracted: edited,
                 });
                 if (r.error) throw r.error;
+                const result = await supabase!
+                  .from("captured_messages")
+                  .select("processing_note")
+                  .eq("panel_id", s.panelId)
+                  .eq("id", selected.id)
+                  .single();
                 await s.refresh();
                 setSelected(null);
                 setNotice(
-                  duplicateMatches.length === 1
-                    ? `Captura ignorada: ${duplicateLabel}.`
-                    : "Captura processada com verificação de duplicidade.",
+                  result.data?.processing_note ||
+                    (duplicateMatches.length === 1
+                      ? `Captura ignorada: ${duplicateLabel}.`
+                      : "Captura processada com verificação de duplicidade."),
                 );
               } catch (e) {
                 setNotice(message(e));
