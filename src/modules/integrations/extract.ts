@@ -75,6 +75,19 @@ export function extractEmail(
     "ticket_number",
     /(?:chamado(?: de n[uú]mero)?)\s*:?\s*\*{0,2}(\d+-\d+)/i,
   );
+  const ticketMatches = Array.from(ticketText.matchAll(/\b\d{4,}-\d+\b/g));
+  const tickets = [...new Set(ticketMatches.map((match) => match[0]))];
+  const ticketItems = tickets.map((ticket) => {
+    const match = ticketMatches.find((candidate) => candidate[0] === ticket)!;
+    const start = match.index! + ticket.length;
+    const following = ticketText.slice(start);
+    const nextTicket = following.search(/\b\d{4,}-\d+\b/);
+    const row = nextTicket < 0 ? following : following.slice(0, nextTicket);
+    return {
+      ticket_number: ticket,
+      reference: row.match(/\b((?:INC|SUP)[-\d]+)\b/i)?.[1] || "",
+    };
+  });
   return {
     title:
       kind === "request"
@@ -89,17 +102,12 @@ export function extractEmail(
     ),
     ticket_number: ticketNumber,
     // A transfer has one authoritative ticket, read from its explicitly labelled field.
-    ticket_numbers:
-      kind === "service"
-        ? ticketNumber
-        : [
-            ...new Set(
-              Array.from(ticketText.matchAll(/\b\d{4,}-\d+\b/g)).map(
-                (m) => m[0],
-              ),
-            ),
-          ].join(", "),
-    reference: capture("reference", /\b((?:INC|SUP)[-\d]+)\b/i),
+    ticket_numbers: kind === "service" ? ticketNumber : tickets.join(", "),
+    reference:
+      kind === "request" && !patterns.reference
+        ? ticketItems.map((item) => item.reference || "—").join(", ")
+        : capture("reference", /\b((?:INC|SUP)[-\d]+)\b/i),
+    ticket_items: kind === "request" ? ticketItems : [],
     amount: amountText
       ? Number(amountText.replace(/\./g, "").replace(",", "."))
       : 0,

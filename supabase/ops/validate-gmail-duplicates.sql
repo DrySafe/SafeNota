@@ -35,11 +35,12 @@ begin
  execute 'set local role service_role';
  insert into public.captured_messages(panel_id,rule_id,client_id,connection_id,message_id,kind,sender,subject,extracted) values(v_panel,v_rule,v_client,v_account,'request-duplicate','request','requests@example.invalid','Test',jsonb_build_object('title','Incoming','order_number','4500012345','amount',999)) returning id into v_capture;
  if not exists(select 1 from public.captured_messages where id=v_capture and status='ignored' and duplicate_request_id=v_service) then raise exception 'FAIL: request duplicate not ignored';end if;
- insert into public.captured_messages(panel_id,rule_id,client_id,connection_id,message_id,kind,sender,subject,extracted) values(v_panel,v_rule,v_client,v_account,'request-a','request','requests@example.invalid','Test',jsonb_build_object('title','New request','order_number','4500012346','amount',40)) returning id into v_a;
- insert into public.captured_messages(panel_id,rule_id,client_id,connection_id,message_id,kind,sender,subject,extracted) values(v_panel,v_rule,v_client,v_account,'request-b','request','requests@example.invalid','Test',jsonb_build_object('title','New request','order_number','4500012346','amount',40)) returning id into v_b;
+ insert into public.captured_messages(panel_id,rule_id,client_id,connection_id,message_id,kind,sender,subject,extracted) values(v_panel,v_rule,v_client,v_account,'request-a','request','requests@example.invalid','Test',jsonb_build_object('title','New request','order_number','4500012346','reference','INC-12345, SUP-67890','amount',40)) returning id into v_a;
+ insert into public.captured_messages(panel_id,rule_id,client_id,connection_id,message_id,kind,sender,subject,extracted) values(v_panel,v_rule,v_client,v_account,'request-b','request','requests@example.invalid','Test',jsonb_build_object('title','New request','order_number','4500012346','reference','INC-12345, SUP-67890','amount',40)) returning id into v_b;
  execute 'set local role authenticated';
  v_new:=public.confirm_capture(v_panel,v_a,v_client);
  if public.confirm_capture(v_panel,v_b,v_client)<>v_new then raise exception 'FAIL: repeated request confirmation';end if;
+ if not exists(select 1 from public.billing_requests where id=v_new and ticket_references='INC-12345, SUP-67890') then raise exception 'FAIL: request references lost';end if;
  if (select count(*) from public.billing_requests where panel_id=v_panel and order_number='4500012346')<>1 then raise exception 'FAIL: request inserted twice';end if;
  if not exists(select 1 from public.billing_requests where id=v_service and title='Original request' and amount=80) then raise exception 'FAIL: original request modified';end if;
 end $test$;

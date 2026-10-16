@@ -1087,3 +1087,9 @@ pre {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+
+.request-ticket {
+  display: block;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}

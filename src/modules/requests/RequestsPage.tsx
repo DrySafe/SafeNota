@@ -18,6 +18,17 @@ export function RequestsPage() {
           <Link to="/notas">Importar XML / conferir documentos</Link>
         </div>
       }
+      rowTitle={(request) =>
+        String(request.order_number || "Pedido sem número")
+      }
+      rowSubtitle={(request) =>
+        [
+          request.title,
+          s.current("clients").find((c) => c.id === request.client_id)?.name,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      }
       rowClassName={(request) =>
         `request-${requestFinancialState(request, s.data).state}`
       }
@@ -34,7 +45,21 @@ export function RequestsPage() {
           <>
             {state === "overdue" && <span className="badge red">Atrasado</span>}
             <span className="muted">
-              Chamados: {String(request.ticket_numbers || "Nenhum informado")}
+              {String(request.ticket_numbers || "")
+                .split(",")
+                .filter((ticket) => ticket.trim())
+                .map((ticket, index) => {
+                  const reference = String(request.ticket_references || "")
+                    .split(",")
+                    [index]?.trim();
+                  return (
+                    <span className="request-ticket" key={index}>
+                      {ticket.trim()}
+                      {reference ? ` · ${reference}` : ""}
+                    </span>
+                  );
+                })}
+              {!request.ticket_numbers && "Nenhum chamado informado"}
             </span>
             {notes.map((note) => (
               <Link

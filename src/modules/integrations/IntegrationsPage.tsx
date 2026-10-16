@@ -203,10 +203,37 @@ export function IntegrationsPage() {
                       ? destinations[0]
                       : "",
                 );
-                setEdited(r.extracted as Record<string, unknown>);
+                const extracted = r.extracted as Record<string, unknown>;
+                const refreshed =
+                  r.kind === "request" &&
+                  extracted.notes &&
+                  !Array.isArray(extracted.ticket_items)
+                    ? extractEmail(String(extracted.notes), "request")
+                    : null;
+                setEdited(
+                  refreshed
+                    ? {
+                        ...extracted,
+                        reference: refreshed.reference,
+                        ticket_items: refreshed.ticket_items,
+                      }
+                    : extracted,
+                );
               }}
             >
-              <strong>{String(r.subject)}</strong>
+              <strong>
+                {r.kind === "request"
+                  ? `Pedido ${String((r.extracted as Record<string, unknown>)?.order_number || "sem número")}`
+                  : String(r.subject)}
+              </strong>
+              {r.kind === "request" && (
+                <small>
+                  {String(
+                    (r.extracted as Record<string, unknown>)?.title ||
+                      r.subject,
+                  )}
+                </small>
+              )}
               <span>{String(r.sender)}</span>
             </button>
           ))}
@@ -354,7 +381,14 @@ export function IntegrationsPage() {
         />
       )}
       {selected && (
-        <Modal title="Confirmar captura" onClose={() => setSelected(null)}>
+        <Modal
+          title={
+            selected.kind === "request"
+              ? `Pedido ${String(edited.order_number || "sem número")}`
+              : "Confirmar captura"
+          }
+          onClose={() => setSelected(null)}
+        >
           <p>{String(selected.subject)}</p>
           <div className="form-grid">
             {[
@@ -364,37 +398,46 @@ export function IntegrationsPage() {
               "ticket_numbers",
               "reference",
               "amount",
-            ].map((k) => (
-              <label key={k}>
-                {
-                  (
-                    {
-                      title: "Descrição",
-                      order_number: "Pedido",
-                      ticket_number: "Chamado",
-                      ticket_numbers: "Chamados",
-                      reference: "Referência",
-                      amount: "Valor",
-                    } as Record<string, string>
-                  )[k]
-                }
-                <input
-                  type={k === "amount" ? "number" : "text"}
-                  min={k === "amount" ? 0 : undefined}
-                  step={k === "amount" ? "0.01" : undefined}
-                  value={String(edited[k] ?? "")}
-                  onChange={(e) =>
-                    setEdited((v) => ({
-                      ...v,
-                      [k]:
-                        k === "amount"
-                          ? Number(e.target.value)
-                          : e.target.value,
-                    }))
+            ]
+              .filter((k) =>
+                selected.kind === "request"
+                  ? k !== "ticket_number"
+                  : !["order_number", "ticket_numbers"].includes(k),
+              )
+              .map((k) => (
+                <label key={k}>
+                  {
+                    (
+                      {
+                        title: "Descrição",
+                        order_number: "Pedido",
+                        ticket_number: "Chamado",
+                        ticket_numbers: "Chamados",
+                        reference:
+                          selected.kind === "request"
+                            ? "Referências (na ordem dos chamados)"
+                            : "Referência",
+                        amount: "Valor",
+                      } as Record<string, string>
+                    )[k]
                   }
-                />
-              </label>
-            ))}
+                  <input
+                    type={k === "amount" ? "number" : "text"}
+                    min={k === "amount" ? 0 : undefined}
+                    step={k === "amount" ? "0.01" : undefined}
+                    value={String(edited[k] ?? "")}
+                    onChange={(e) =>
+                      setEdited((v) => ({
+                        ...v,
+                        [k]:
+                          k === "amount"
+                            ? Number(e.target.value)
+                            : e.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              ))}
           </div>
           <label>
             Cliente

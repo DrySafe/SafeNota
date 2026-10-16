@@ -33,6 +33,7 @@ beforeAll(async () => {
     "202610150009_gmail_ticket_priority.sql",
     "202610150010_gmail_request_duplicates.sql",
     "202610150011_friendly_audit_history.sql",
+    "202610160012_request_references.sql",
   ])
     await db.exec(
       await readFile(
@@ -925,6 +926,7 @@ it("ignora pedidos repetidos na captura e confirmação, isolados por cliente e 
             title: "Incoming",
             order_number: order,
             ticket_numbers: "12345-1",
+            reference: "INC-12345",
             amount: 999,
             notes: "Incoming instructions",
           }),
@@ -974,6 +976,14 @@ it("ignora pedidos repetidos na captura e confirmação, isolados por cliente e 
       ])
     ).rows[0].id,
   ).toBe(created);
+  expect(
+    (
+      await db.query(
+        "select ticket_references from public.billing_requests where id=$1",
+        [created],
+      )
+    ).rows[0].ticket_references,
+  ).toBe("INC-12345");
   expect(
     (
       await db.query(
@@ -1098,4 +1108,47 @@ it("histórico guarda descrição e e-mail do autor mesmo após exclusão", asyn
       ])
     ).rows,
   ).toHaveLength(0);
+});
+
+it("salva e edita referências da requisição na mesma ordem dos chamados", async () => {
+  await login(admin);
+  const payload = {
+    client_id: client,
+    title: "Descrição menor",
+    order_number: "4500077777",
+    ticket_numbers: "24493-1, 24543-1",
+    ticket_references: "INC-2032465, SUP-2056668",
+    amount: 160,
+    status: "A gerar",
+  };
+  const id = (
+    await db.query(
+      "select public.save_requisition($1,$2,'{}'::uuid[],null) as id",
+      [panel, JSON.stringify(payload)],
+    )
+  ).rows[0].id;
+  expect(
+    (
+      await db.query(
+        "select ticket_references from public.billing_requests where id=$1",
+        [id],
+      )
+    ).rows[0].ticket_references,
+  ).toBe(payload.ticket_references);
+  await db.query("select public.save_requisition($1,$2,'{}'::uuid[],$3)", [
+    panel,
+    JSON.stringify({ ...payload, title: "Descrição editada" }),
+    id,
+  ]);
+  expect(
+    (
+      await db.query(
+        "select ticket_references,title from public.billing_requests where id=$1",
+        [id],
+      )
+    ).rows[0],
+  ).toEqual({
+    ticket_references: payload.ticket_references,
+    title: "Descrição editada",
+  });
 });

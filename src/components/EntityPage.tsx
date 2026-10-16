@@ -18,6 +18,8 @@ export function EntityPage({
   fields,
   extra,
   rowExtra,
+  rowTitle,
+  rowSubtitle,
   rowClassName,
   rowFilter,
   groupBy,
@@ -29,6 +31,8 @@ export function EntityPage({
   fields: Field[];
   extra?: ReactNode;
   rowExtra?: (row: Row) => ReactNode;
+  rowTitle?: (row: Row) => string;
+  rowSubtitle?: (row: Row) => string;
   rowClassName?: (row: Row) => string;
   rowFilter?: (row: Row) => boolean;
   groupBy?: (row: Row) => string;
@@ -155,17 +159,23 @@ export function EntityPage({
                     .toUpperCase()}
                 </span>
                 <div>
-                  <h3>{String(r.title || r.name || r.number || "Registro")}</h3>
+                  <h3>
+                    {rowTitle
+                      ? rowTitle(r)
+                      : String(r.title || r.name || r.number || "Registro")}
+                  </h3>
                   <p>
-                    {[
-                      r.order_number,
-                      r.ticket_number,
-                      r.reference,
-                      s.current("clients").find((c) => c.id === r.client_id)
-                        ?.name,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") || "Detalhes do registro"}
+                    {rowSubtitle
+                      ? rowSubtitle(r)
+                      : [
+                          r.order_number,
+                          r.ticket_number,
+                          r.reference,
+                          s.current("clients").find((c) => c.id === r.client_id)
+                            ?.name,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "Detalhes do registro"}
                   </p>
                 </div>
               </button>

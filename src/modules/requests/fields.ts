@@ -17,6 +17,7 @@ export function requestFields(): Field[] {
       required: true,
     },
     { key: "ticket_numbers", label: "Chamados informados" },
+    { key: "ticket_references", label: "Referências (na ordem dos chamados)" },
     { key: "_service_ids", label: "Serviços", type: "service-list" },
     {
       key: "amount",

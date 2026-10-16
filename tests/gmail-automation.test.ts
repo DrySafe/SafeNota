@@ -190,3 +190,38 @@ it("compara pedidos completos sem remover zeros e respeita cliente/painel", asyn
   expect(matchingRequests(rows, "p", "other", "00123")).toHaveLength(0);
   expect(matchingRequests(rows, "p", "c", "")).toHaveLength(0);
 });
+
+it("mantém todos os pares chamado/referência na ordem do e-mail, inclusive referências repetidas", () => {
+  const text = `Número do Pedido: 4500010650
+Valor Total da Nota Fiscal: R$ 320,00
+CHAMADOS REFERENTES À NOTA FISCAL
+Chamado Referência Valor
+24493-1 INC-2032465 R$ 80,00
+24543-1 SUP-2056668 R$ 80,00
+24708-1 SUP-2057569 R$ 80,00
+24712-1 SUP-2032465 R$ 80,00
+DADOS DO TOMADOR DO SERVIÇO`;
+  expect(extractEmail(text, "request")).toMatchObject({
+    order_number: "4500010650",
+    ticket_numbers: "24493-1, 24543-1, 24708-1, 24712-1",
+    reference: "INC-2032465, SUP-2056668, SUP-2057569, SUP-2032465",
+    ticket_items: [
+      { ticket_number: "24493-1", reference: "INC-2032465" },
+      { ticket_number: "24543-1", reference: "SUP-2056668" },
+      { ticket_number: "24708-1", reference: "SUP-2057569" },
+      { ticket_number: "24712-1", reference: "SUP-2032465" },
+    ],
+  });
+  expect(
+    extractEmail(text.replace("SUP-2032465", "INC-2032465"), "request")
+      .reference,
+  ).toBe("INC-2032465, SUP-2056668, SUP-2057569, INC-2032465");
+});
+it("referência ausente não desloca as referências dos próximos chamados", () => {
+  expect(
+    extractEmail(
+      "CHAMADOS REFERENTES À NOTA FISCAL\n12345-1 R$ 80,00\n12346-1 SUP-12345 R$ 80,00",
+      "request",
+    ).reference,
+  ).toBe("—, SUP-12345");
+});

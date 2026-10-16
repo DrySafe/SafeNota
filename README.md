@@ -101,3 +101,5 @@ Requisições capturadas pelo Gmail também são deduplicadas pelo número compl
 Na tela E-mails, o campo “Buscar nos últimos (dias)” permite escolher de 1 a 365 dias para cada busca manual (padrão: 30). O período se aplica aos remetentes/regras ativos do painel; reduzir a janela diminui o volume consultado. O limite de 250 mensagens por regra continua sinalizado quando há mais resultados.
 
 O histórico traduz ações e entidades, mostra chamado/pedido/nome do registro e identifica o autor pelo e-mail; capturas sem usuário autenticado aparecem como “Automação do Gmail”. Novos eventos guardam a descrição no momento da ação, inclusive em exclusões. Eventos antigos são preenchidos pelos dados ainda disponíveis, sem expor IDs internos como descrição.
+
+Requisições destacam o número do pedido como título e a descrição como texto secundário. A extração Gmail conserva todas as referências na ordem dos chamados, inclusive referências repetidas; linhas sem referência mantêm um marcador para não deslocar os pares. A confirmação e a edição preservam a lista na requisição.

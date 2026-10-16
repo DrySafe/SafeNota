@@ -856,3 +856,41 @@ test("histórico mostra chamado e autor legíveis sem IDs do banco", async ({
     /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i,
   );
 });
+
+test("requisição destaca pedido e conserva pares de chamados e referências", async ({
+  page,
+}) => {
+  await navigate(page, "/requisicoes");
+  await page.getByRole("button", { name: "Adicionar", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByLabel("Descrição *", { exact: true })
+    .fill("Descrição secundária do pedido");
+  await dialog.getByRole("combobox").first().selectOption("client-1");
+  await dialog.getByLabel("Número da requisição / pedido").fill("4500010650");
+  await dialog.getByLabel("Chamados informados").fill("24493-1, 24543-1");
+  await dialog
+    .getByLabel("Referências (na ordem dos chamados)")
+    .fill("INC-2032465, SUP-2056668");
+  await dialog.getByLabel("Valor solicitado").fill("160");
+  await dialog.getByRole("button", { name: "Salvar", exact: true }).click();
+  const card = page.locator(".entity-card").filter({ hasText: "4500010650" });
+  await expect(
+    card.getByRole("heading", { name: "4500010650", exact: true }),
+  ).toBeVisible();
+  await expect(card.locator(".entity-main p")).toContainText(
+    "Descrição secundária do pedido",
+  );
+  await expect(card.locator(".request-ticket").nth(0)).toHaveText(
+    "24493-1 · INC-2032465",
+  );
+  await expect(card.locator(".request-ticket").nth(1)).toHaveText(
+    "24543-1 · SUP-2056668",
+  );
+  await card.locator(".entity-main").click();
+  await expect(
+    page
+      .getByRole("dialog")
+      .getByText("INC-2032465, SUP-2056668", { exact: true }),
+  ).toBeVisible();
+});
