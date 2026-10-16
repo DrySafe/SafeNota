@@ -10,3 +10,18 @@ export function gmailSearchDays(value: unknown): number {
   }
   return value;
 }
+
+// Freeze the window once per run so every rule scans the same exact 24 hours.
+export function gmailDailyWindow(now = Date.now()) {
+  const before = Math.floor(now / 1000);
+  return { after: before - 24 * 60 * 60, before };
+}
+export function gmailSearchQuery(
+  sender: string,
+  days: number,
+  window?: { after: number; before: number },
+) {
+  return window
+    ? `from:${sender} after:${window.after} before:${window.before}`
+    : `from:${sender} newer_than:${gmailSearchDays(days)}d`;
+}

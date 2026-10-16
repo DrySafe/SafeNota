@@ -20,3 +20,24 @@ it("rejeita períodos inválidos antes de consultar o Gmail", () => {
     expect(() => gmailSearchDays(value)).toThrow("entre 1 e 365 dias");
   }
 });
+
+it("busca automática cobre exatamente 24h, sem depender do fuso ou do horário de verão", async () => {
+  const { gmailDailyWindow, gmailSearchQuery } =
+    await import("../src/modules/integrations/searchPeriod");
+  for (const iso of [
+    "2026-10-16T09:00:00Z",
+    "2026-03-08T09:00:00Z",
+    "2026-11-01T09:00:00Z",
+  ]) {
+    const now = Date.parse(iso);
+    const window = gmailDailyWindow(now);
+    expect(window.before - window.after).toBe(86400);
+    expect(window.before).toBe(now / 1000);
+    expect(gmailSearchQuery("sender@example.test", 365, window)).toBe(
+      `from:sender@example.test after:${window.after} before:${window.before}`,
+    );
+  }
+  expect(gmailSearchQuery("sender@example.test", 7)).toBe(
+    "from:sender@example.test newer_than:7d",
+  );
+});

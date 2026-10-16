@@ -1,4 +1,8 @@
-import { gmailSearchDays } from "../../../src/modules/integrations/searchPeriod.ts";
+import {
+  gmailSearchDays,
+  gmailDailyWindow,
+  gmailSearchQuery,
+} from "../../../src/modules/integrations/searchPeriod.ts";
 import {
   admin,
   callback,
@@ -45,7 +49,11 @@ function body(part: Part): string {
       .replace(/&amp;/g, "&");
   return "";
 }
-async function sync(rules: Rule[], days = 30) {
+async function sync(
+  rules: Rule[],
+  days = 30,
+  window?: { after: number; before: number },
+) {
   const db = admin();
   let captured = 0;
   let ignored = 0;
@@ -69,7 +77,12 @@ async function sync(rules: Rule[], days = 30) {
           .eq("user_id", account.user_id)
           .maybeSingle(),
       ).data;
-      if (!membership || account.status !== "active") continue;
+      if (
+        !membership ||
+        !["admin", "operator"].includes(membership.role) ||
+        account.status !== "active"
+      )
+        continue;
       let token = access.get(account.id);
       if (!token) {
         const encrypted = check(
@@ -98,7 +111,7 @@ async function sync(rules: Rule[], days = 30) {
         const url = new URL(
           "https://gmail.googleapis.com/gmail/v1/users/me/messages",
         );
-        url.searchParams.set("q", `from:${rule.sender} newer_than:${days}d`);
+        url.searchParams.set("q", gmailSearchQuery(rule.sender, days, window));
         url.searchParams.set("maxResults", "50");
         if (page) url.searchParams.set("pageToken", page);
         const list = await google(url.toString(), {
@@ -188,9 +201,13 @@ Deno.serve(async (req: Request) => {
   try {
     const input = await req.json();
     const db = admin();
-    const cron = Deno.env.get("SYNC_CRON_SECRET");
     if (input.action === "sync-all") {
-      if (!cron || req.headers.get("x-cron-secret") !== cron)
+      const supplied = req.headers.get("x-cron-secret");
+      const allowed = [
+        Deno.env.get("SYNC_CRON_SECRET"),
+        Deno.env.get("GMAIL_DAILY_CRON_SECRET"),
+      ].filter(Boolean);
+      if (!supplied || !allowed.includes(supplied))
         return json({ error: "Não autorizado" }, 401);
       const rules = check(
         await db
@@ -199,7 +216,7 @@ Deno.serve(async (req: Request) => {
           .eq("status", "active")
           .is("deleted_at", null),
       ).data;
-      return json(await sync(rules || []));
+      return json(await sync(rules || [], 1, gmailDailyWindow()));
     }
     const user = await userFor(req);
     if (input.action === "connect") {

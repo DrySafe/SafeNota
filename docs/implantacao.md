@@ -29,7 +29,7 @@ A configuração Google é feita pelo responsável pelo SaaS uma vez; clientes u
 
 O escopo `gmail.readonly` pode exigir verificação Google e requisitos adicionais para uso público. Em modo de teste, autorizações podem expirar e exigir reconexão. Não anunciar Gmail em produção antes de validar consentimento e exigências aplicáveis.
 
-A sincronização atual percorre mensagens dos últimos 30 dias, até 250 mensagens por regra e execução, e deduplica por painel, conexão e message_id. Se houver mais, ela informa limite e pede filtros mais específicos; não é importação histórica completa. Remover o proprietário da conexão do painel interrompe a captura naquele painel. Desconectar revoga a autorização Google, remove o token e pausa as regras; registros confirmados são preservados.
+A busca manual permite de 1 a 365 dias (padrão de 30). A captura automática diária considera somente as últimas 24 horas, até 250 mensagens por regra e execução, e deduplica por painel, conexão e message_id. Se houver mais, ela informa limite e pede filtros mais específicos; não é importação histórica completa. Remover o proprietário da conexão do painel interrompe a captura naquele painel. Desconectar revoga a autorização Google, remove o token e pausa as regras; registros confirmados são preservados.
 
 Padrões JSON opcionais aceitam chaves `order_number`, `ticket_number`, `reference` e `amount`, com grupo 1 de captura. Usar apenas padrões simples. Configurar palavras-chave pelo texto do remetente para distinguir solicitações de emissão de mensagens comuns. A revisão permite corrigir campos; nenhuma extração confirma pagamentos.
 
@@ -51,7 +51,11 @@ O horário acima é 08:00 UTC, 05:00 em São Paulo. A competência e o venciment
 
 ### Gmail
 
-Configurar agendador seguro para fazer POST em `https://SEU_PROJECT_REF.supabase.co/functions/v1/gmail`, com `Content-Type: application/json`, header `x-cron-secret` vindo do cofre do agendador e corpo `{"action":"sync-all"}`. Não colocar segredo em scripts públicos ou SQL versionado. Sugestão inicial: a cada 10 minutos. A interface também permite sincronização manual.
+O job `safenota-gmail-daily` está configurado no Supabase autorizado para `0 9 * * *`: todos os dias às **06:00 em America/Sao_Paulo**. Funciona com o app fechado e considera apenas as últimas **24 horas**, usando limites Unix `after`/`before` fixos por execução. A captura deixa mensagens novas na revisão; não confirma serviços, notas ou pagamentos automaticamente. Regras pausadas e conexões sem acesso de administrador/operador não são processadas.
+
+Para reproduzir a configuração somente no projeto autorizado: `python scripts/enable_gmail_daily.py`, após implantar a função `gmail` atualizada. O script reutiliza ou cria a credencial dedicada no Supabase Vault e a registra como `GMAIL_DAILY_CRON_SECRET` da Edge Function. Ele não troca o segredo antigo `SYNC_CRON_SECRET` nem credenciais OAuth. O SQL de agendamento fica em `supabase/ops/enable-gmail-daily-job.sql`; nenhum segredo é versionado.
+
+O job chama `private.dispatch_gmail_daily()`, que envia POST por pg_net. Consulte `cron.job`/`cron.job_run_details`, `private.gmail_sync_dispatches` e a resposta por `request_id` em `net._http_response`. Sucesso do job indica despacho; sucesso da sincronização exige HTTP 200 e `errors` vazio na resposta. Respostas pg_net têm retenção temporária. Como a janela é limitada a 24 horas, uma execução perdida exige busca manual de um período maior para recuperar mensagens antigas. A interface conserva a busca manual.
 
 Monitorar resposta `errors`, expiração de autorização e duração das funções. O processamento atual é sequencial e apropriado para o início; volumes altos precisam de fila e cursores de sincronização. Evitar execuções globais sobrepostas. Duplicatas concorrentes são bloqueadas no banco.
 

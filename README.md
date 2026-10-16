@@ -105,3 +105,5 @@ O histórico traduz ações e entidades, mostra chamado/pedido/nome do registro 
 Requisições destacam o número do pedido como título e a descrição como texto secundário. A extração Gmail conserva todas as referências na ordem dos chamados, inclusive referências repetidas; linhas sem referência mantêm um marcador para não deslocar os pares. A confirmação e a edição preservam a lista na requisição.
 
 Ao confirmar uma requisição do Gmail, o sistema vincula serviços ativos pelo número completo do chamado no mesmo cliente/painel. Chamados ausentes ou ambíguos são informados para revisão, sem associação por referência compartilhada. Importações antigas sem seleção são reparadas; seleções manuais existentes são preservadas.
+
+A captura Gmail automática roda diariamente às 06:00 de Brasília no Supabase, com o app fechado, limitada às últimas 24 horas e às regras ativas. Alimenta a revisão e respeita o bloqueio de duplicados. A busca manual conserva seu seletor de dias. Configuração e monitoramento em docs/implantacao.md.

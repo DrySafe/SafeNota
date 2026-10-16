@@ -21,13 +21,13 @@ O conteúdo do e-mail é dado de entrada; instruções no texto não alteram per
 | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
 | Conectar/desconectar Google, consentimento e refresh token criptografado | Base existente nas Edge Functions `gmail` e `gmail-callback`; operação real depende da configuração OAuth.                         |
 | Filtros de remetente/palavras-chave por painel                           | Existentes em `email_rules`.                                                                                                       |
-| Captura manual e endpoint `sync-all`                                     | Existentes; endpoint não comprova que haja agendamento ativo.                                                                      |
+| Captura manual e diária | Implementadas: job Supabase às 06:00 de Brasília; `sync-all` consulta somente as últimas 24 horas. |
 | Revisar e confirmar uma captura                                          | Interface e RPC `confirm_capture` existentes.                                                                                      |
 | Extração dos modelos fornecidos                                          | Ampliada nesta etapa: prazo de envio, descrição e status recebido; evita confundir CNPJ/CEP com chamados.                          |
 | Decidir criar, revisar ou reconhecer registro existente                  | Base pura em `automation.ts`, com testes. **Ainda não ligada ao processamento de produção.**                                       |
 | Duplicidade de transferências                                            | Implementada na captura e confirmação: chamado completo ou referência, com isolamento por cliente/painel e histórico de ignorados. |
 | Vínculo pedido/chamados na confirmação | Implementado na RPC: chamado completo e único no mesmo cliente/painel; ausências e ambiguidades são informadas para revisão. |
-| Criação automática agendada | Próxima etapa. Não está ativada. |
+| Cadastro definitivo sem revisão | Próxima etapa. Não está ativado; a captura diária alimenta a fila de revisão. |
 
 `assessEmailAutomation` apenas calcula uma decisão. Não acessa o Gmail nem grava dados. A captura atual mantém a fila de revisão; não foi ativado um robô em contas reais nesta etapa.
 
@@ -73,7 +73,7 @@ Mostrar última busca, próxima execução prevista, registros criados, duplicad
 
 ## Execução em segundo plano
 
-Começar com consulta agendada, sugerida a cada cinco minutos, independente de o app estar aberto. Registrar execução, progresso e retomada. A busca manual permite escolher de 1 a 365 dias (padrão de 30), com até 250 mensagens por regra. Chamadas agendadas continuam usando 30 dias; não é suficiente como sincronização incremental definitiva.
+Captura diária no Supabase às 06:00 de Brasília, independente de o app estar aberto. Cada execução usa apenas as últimas 24 horas; não amplia o período conforme parâmetros enviados ao endpoint automático. A busca manual permite escolher de 1 a 365 dias (padrão de 30), com até 250 mensagens por regra. O despacho é registrado em `private.gmail_sync_dispatches`; verificar também a resposta pg_net. Mensagens novas aguardam confirmação e duplicadas são ignoradas.
 
 Persistir cursor/progresso por caixa/regra, processar lotes com limites e retentativas e respeitar quotas do Google. Depois usar Gmail History para alterações incrementais, com nova varredura quando o histórico expirar. Watch/Pub/Sub pode ser uma evolução posterior; não é necessário para a primeira versão.
 
