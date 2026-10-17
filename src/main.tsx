@@ -1,3 +1,4 @@
+import { InstallApp } from "./components/InstallApp";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
@@ -11,8 +12,21 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <AuthProvider>
         <StoreProvider>
           <App />
+          <InstallApp />
         </StoreProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>,
 );
+
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js", { updateViaCache: "none" })
+      .catch(() => {
+        console.warn(
+          "Não foi possível preparar a instalação do SafeNota nesta sessão.",
+        );
+      });
+  });
+}

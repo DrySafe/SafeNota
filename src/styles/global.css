@@ -1093,3 +1093,16 @@ pre {
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
+
+.install-app {
+  position: fixed;
+  right: 20px;
+  bottom: 84px;
+  z-index: 25;
+  box-shadow: 0 4px 18px #164b3829;
+}
+@media (min-width: 760px) {
+  .install-app {
+    bottom: 24px;
+  }
+}

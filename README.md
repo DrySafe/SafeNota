@@ -107,3 +107,11 @@ Requisições destacam o número do pedido como título e a descrição como tex
 Ao confirmar uma requisição do Gmail, o sistema vincula serviços ativos pelo número completo do chamado no mesmo cliente/painel. Chamados ausentes ou ambíguos são informados para revisão, sem associação por referência compartilhada. Importações antigas sem seleção são reparadas; seleções manuais existentes são preservadas.
 
 A captura Gmail automática roda diariamente às 06:00 de Brasília no Supabase, com o app fechado, limitada às últimas 24 horas e às regras ativas. Alimenta a revisão e respeita o bloqueio de duplicados. A busca manual conserva seu seletor de dias. Configuração e monitoramento em docs/implantacao.md.
+
+## Instalar o SafeNota
+
+O app publicado por HTTPS oferece instalação no Chrome por meio do botão **Instalar SafeNota**, quando o navegador disponibilizar a opção, ou pelo menu de instalação do próprio Chrome. Instalado, abre em janela própria com ícone e nome SafeNota. A instalação não exige configuração adicional do Supabase.
+
+O service worker fica ativo somente no build de produção. Ele mantém apenas a página estática de aviso sem conexão; não cria cópias de serviços, pagamentos, e-mails ou documentos no Cache Storage. Para consultar ou editar dados, continua sendo necessária conexão com a internet. O carregamento do app e dos módulos segue pela rede para evitar versões antigas dos arquivos.
+
+Ícone vetorial: `public/favicon.svg`; PNGs para instalação em `public/icons/`. Para regenerar: `CHROMIUM_PATH=/usr/bin/chromium node scripts/generate-icons.mjs` (ou Chromium instalado pelo Playwright). Para conferir instalação e aviso offline: rode `npm run build`, inicie `npm run preview -- --host 127.0.0.1 --port 4173 --strictPort` e execute `CHROMIUM_PATH=/usr/bin/chromium node scripts/check-pwa.mjs` em outro terminal. Esse teste usa perfil temporário de navegador, verifica os critérios de instalação reais do Chromium e não acessa dados reais de usuários.

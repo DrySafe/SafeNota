@@ -894,3 +894,41 @@ test("requisição destaca pedido e conserva pares de chamados e referências", 
       .getByText("INC-2032465, SUP-2056668", { exact: true }),
   ).toBeVisible();
 });
+
+test("instalação aparece quando o Chrome permite e desaparece após instalar", async ({
+  page,
+}) => {
+  const install = page.getByRole("button", {
+    name: "Instalar SafeNota",
+    exact: true,
+  });
+  await expect(install).not.toBeVisible();
+  await page.evaluate(() => {
+    const event = new Event("beforeinstallprompt", { cancelable: true });
+    Object.assign(event, {
+      prompt: async () => {
+        document.documentElement.dataset.installPrompt = "opened";
+      },
+      userChoice: Promise.resolve({ outcome: "accepted" }),
+    });
+    window.dispatchEvent(event);
+  });
+  await expect(install).toBeVisible();
+  await install.click();
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-install-prompt",
+    "opened",
+  );
+  await expect(install).not.toBeVisible();
+  await page.evaluate(() => {
+    window.dispatchEvent(
+      Object.assign(new Event("beforeinstallprompt", { cancelable: true }), {
+        prompt: async () => {},
+        userChoice: Promise.resolve({ outcome: "dismissed" }),
+      }),
+    );
+  });
+  await expect(install).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new Event("appinstalled")));
+  await expect(install).not.toBeVisible();
+});
